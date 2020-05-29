@@ -2,6 +2,8 @@
 
 #include "absl/debugging/symbolize.h"
 
+// todo by mgw: remove once fixed
+char* program_invocation_name;
 // NOLINT(namespace-envoy)
 
 /**
