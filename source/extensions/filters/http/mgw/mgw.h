@@ -199,7 +199,7 @@ private:
  * mgw service before allowing further filter iteration.
  */
 class Filter : public Logger::Loggable<Logger::Id::filter>,
-               public Http::StreamDecoderFilter,
+               public Http::StreamFilter,
                public Filters::Common::MGW::RequestCallbacks {
 public:
   Filter(const FilterConfigSharedPtr& config, Filters::Common::MGW::ClientPtr&& client)
@@ -214,6 +214,14 @@ public:
   Http::FilterDataStatus decodeData(Buffer::Instance& data, bool end_stream) override;
   Http::FilterTrailersStatus decodeTrailers(Http::RequestTrailerMap& trailers) override;
   void setDecoderFilterCallbacks(Http::StreamDecoderFilterCallbacks& callbacks) override;
+
+  // Http::StreamEncoderFilter
+  Http::FilterHeadersStatus encode100ContinueHeaders(Http::ResponseHeaderMap&) override;
+  Http::FilterHeadersStatus encodeHeaders(Http::ResponseHeaderMap&, bool) override;
+  Http::FilterDataStatus encodeData(Buffer::Instance&, bool) override;
+  Http::FilterTrailersStatus encodeTrailers(Http::ResponseTrailerMap&) override;
+  Http::FilterMetadataStatus encodeMetadata(Http::MetadataMap&) override;
+  void setEncoderFilterCallbacks(Http::StreamEncoderFilterCallbacks&) override;
 
   // MGW::RequestCallbacks
   void onComplete(Filters::Common::MGW::ResponsePtr&&) override;
@@ -240,6 +248,7 @@ private:
   FilterConfigSharedPtr config_;
   Filters::Common::MGW::ClientPtr client_;
   Http::StreamDecoderFilterCallbacks* callbacks_{};
+  Http::StreamEncoderFilterCallbacks* encoder_callbacks_{};
   Http::RequestHeaderMap* request_headers_;
   State state_{State::NotStarted};
   FilterReturn filter_return_{FilterReturn::ContinueDecoding};

@@ -252,6 +252,31 @@ void Filter::onComplete(Filters::Common::MGW::ResponsePtr&& response) {
   }
 }
 
+// set encode abstract methods overriden
+Http::FilterHeadersStatus Filter::encodeHeaders(Http::ResponseHeaderMap&, bool) {
+  return Http::FilterHeadersStatus::Continue;
+}
+
+Http::FilterHeadersStatus Filter::encode100ContinueHeaders(Http::ResponseHeaderMap&) {
+  return Http::FilterHeadersStatus::Continue;
+}
+
+Http::FilterDataStatus Filter::encodeData(Buffer::Instance&, bool) {
+  ENVOY_LOG(info, "[woohoo] inside encode data");
+  return Http::FilterDataStatus::Continue;
+}
+Http::FilterTrailersStatus Filter::encodeTrailers(Http::ResponseTrailerMap&) {
+  return Http::FilterTrailersStatus::Continue;
+}
+Http::FilterMetadataStatus Filter::encodeMetadata(Http::MetadataMap&) {
+  return Http::FilterMetadataStatus::Continue;
+}
+void Filter::setEncoderFilterCallbacks(
+    Http::StreamEncoderFilterCallbacks& callbacks) {
+  encoder_callbacks_ = &callbacks;
+}
+////////////////////
+
 bool Filter::isBufferFull() const {
   const auto* buffer = callbacks_->decodingBuffer();
   if (config_->allowPartialMessage() && buffer != nullptr) {

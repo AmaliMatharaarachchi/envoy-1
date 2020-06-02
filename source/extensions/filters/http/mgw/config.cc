@@ -38,7 +38,7 @@ Http::FilterFactoryCb MGWFilterConfig::createFilterFactoryFromProtoTyped(
                 &context](Http::FilterChainFactoryCallbacks& callbacks) {
       auto client = std::make_unique<Extensions::Filters::Common::MGW::RawHttpClientImpl>(
           context.clusterManager(), client_config, context.timeSource());
-      callbacks.addStreamDecoderFilter(Http::StreamDecoderFilterSharedPtr{
+      callbacks.addStreamFilter(Http::StreamFilterSharedPtr{
           std::make_shared<Filter>(filter_config, std::move(client))});
     };
   } else {
@@ -53,7 +53,7 @@ Http::FilterFactoryCb MGWFilterConfig::createFilterFactoryFromProtoTyped(
               grpc_service, context.scope(), true);
       auto client = std::make_unique<Filters::Common::MGW::GrpcClientImpl>(
           async_client_factory->create(), std::chrono::milliseconds(timeout_ms), use_alpha);
-      callbacks.addStreamDecoderFilter(Http::StreamDecoderFilterSharedPtr{
+      callbacks.addStreamFilter(Http::StreamFilterSharedPtr{
           std::make_shared<Filter>(filter_config, std::move(client))});
     };
   }
