@@ -29,10 +29,11 @@ envoy_cc_library(
         "//source/common/http:utility_lib",
         "//source/common/router:config_lib",
         "//source/extensions/filters/common/mgw:mgw_grpc_lib",
-        "//source/extensions/filters/common/mgw:mgw_http_lib",
+        "//source/extensions/filters/common/mgw:mgw_res_grpc_lib",
         "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
         "@envoy_api//envoy/extensions/filters/http/mgw/v3:pkg_cc_proto",
         "@envoy_api//envoy/service/auth/v3:pkg_cc_proto",
+        "@envoy_api//envoy/service/mgw_res/v3:pkg_cc_proto",
     ],
 )
 
@@ -46,7 +47,6 @@ envoy_cc_extension(
         "//include/envoy/registry",
         "//include/envoy/stats:stats_macros",
         "//source/common/protobuf:utility_lib",
-        "//source/extensions/filters/common/mgw:mgw_http_lib",
         "//source/extensions/filters/http:well_known_names",
         "//source/extensions/filters/http/common:factory_base_lib",
         "@envoy_api//envoy/config/core/v3:pkg_cc_proto",

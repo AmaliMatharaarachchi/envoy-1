@@ -8,6 +8,7 @@
 #include "envoy/common/pure.h"
 #include "envoy/http/codes.h"
 #include "envoy/service/auth/v3/external_auth.pb.h"
+#include "envoy/service/mgw_res/v3/mgw_res.pb.h"
 #include "envoy/stream_info/stream_info.h"
 #include "envoy/tracing/http_tracer.h"
 
@@ -74,6 +75,19 @@ public:
   virtual void onComplete(ResponsePtr&& response) PURE;
 };
 
+/**
+ * Async callbacks used during check() calls.
+ */
+class ResponseCallbacks {
+public:
+  virtual ~ResponseCallbacks() = default;
+
+  /**
+   * Called when a check request is complete. The resulting ResponsePtr is supplied.
+   */
+  virtual void onResponseComplete(ResponsePtr&& response) PURE;
+};
+
 class Client {
 public:
   // Destructor
@@ -99,6 +113,33 @@ public:
 };
 
 using ClientPtr = std::unique_ptr<Client>;
+
+class ResClient {
+public:
+  // Destructor
+  virtual ~ResClient() = default;
+
+  /**
+   * Cancel an inflight Intercept request.
+   */
+  virtual void cancel() PURE;
+
+  /**
+   * Request a check call to an external mgw response service which can use the
+   * passed request parameters to make a permit/deny decision.
+   * @param callback supplies the completion callbacks.
+   *        NOTE: The callback may happen within the calling stack.
+   * @param request is the proto message with the attributes of the specific payload.
+   * @param parent_span source for generating an egress child span as part of the trace.
+   * @param stream_info supplies the client's stream info.
+   */
+  virtual void intercept(ResponseCallbacks& callback,
+                         const envoy::service::mgw_res::v3::CheckRequest& request,
+                         Tracing::Span& parent_span,
+                         const StreamInfo::StreamInfo& stream_info) PURE;
+};
+
+using ResClientPtr = std::unique_ptr<ResClient>;
 
 } // namespace MGW
 } // namespace Common

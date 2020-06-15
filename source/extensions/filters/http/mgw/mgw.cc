@@ -8,6 +8,7 @@
 #include "common/router/config_impl.h"
 
 #include "extensions/filters/http/well_known_names.h"
+#include "extensions/filters/common/mgw/check_response_utils.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -142,7 +143,9 @@ void Filter::setDecoderFilterCallbacks(Http::StreamDecoderFilterCallbacks& callb
 void Filter::onDestroy() {
   if (state_ == State::Calling) {
     state_ = State::Complete;
+    res_state_ = State::Complete;
     client_->cancel();
+    res_client_->cancel();
   }
 }
 
@@ -252,28 +255,180 @@ void Filter::onComplete(Filters::Common::MGW::ResponsePtr&& response) {
   }
 }
 
+void Filter::onResponseComplete(Filters::Common::MGW::ResponsePtr&& response) {
+  res_state_ = State::Complete;
+  using Filters::Common::MGW::CheckStatus;
+  Stats::StatName empty_stat_name;
+  std::cout << "response" << response << std::endl;
+  switch (response->status) {
+  case CheckStatus::OK: {
+    ENVOY_STREAM_LOG(trace, "mgw filter added header(s) to the response:", *res_callbacks_);
+    if (config_->clearRouteCache() &&
+        (!response->headers_to_add.empty() || !response->headers_to_append.empty())) {
+      ENVOY_STREAM_LOG(debug, "mgw is clearing route cache", *res_callbacks_);
+      res_callbacks_->clearRouteCache();
+    }
+    for (const auto& header : response->headers_to_add) {
+      ENVOY_STREAM_LOG(trace, "'{}':'{}'", *res_callbacks_, header.first.get(), header.second);
+      response_headers_->setCopy(header.first, header.second);
+    }
+    for (const auto& header : response->headers_to_append) {
+      const Http::HeaderEntry* header_to_modify = response_headers_->get(header.first);
+      if (header_to_modify) {
+        ENVOY_STREAM_LOG(trace, "'{}':'{}'", *res_callbacks_, header.first.get(), header.second);
+        response_headers_->appendCopy(header.first, header.second);
+      }
+    }
+    if (cluster_) {
+      config_->incCounter(cluster_->statsScope(), config_->mgw_ok_);
+    }
+    stats_.ok_.inc();
+    continueEncoding();
+    break;
+  }
+
+  case CheckStatus::Denied: {
+    ENVOY_STREAM_LOG(trace, "mgw filter rejected the request. Response status code: '{}",
+                     *res_callbacks_, enumToInt(response->status_code));
+    stats_.denied_.inc();
+
+    if (cluster_) {
+      config_->incCounter(cluster_->statsScope(), config_->mgw_denied_);
+
+      Http::CodeStats::ResponseStatInfo info{config_->scope(),
+                                             cluster_->statsScope(),
+                                             empty_stat_name,
+                                             enumToInt(response->status_code),
+                                             true,
+                                             empty_stat_name,
+                                             empty_stat_name,
+                                             empty_stat_name,
+                                             empty_stat_name,
+                                             false};
+      config_->httpContext().codeStats().chargeResponseStat(info);
+    }
+    // ENVOY_STREAM_LOG(trace, "mgw filter added header(s) to the local response:", res_callbacks);
+    // // First remove all headers requested by the mgw filter,
+    // // to ensure that they will override existing headers
+    // for (const auto& header : headers) {
+    //   response_headers.remove(header.first);
+    // }
+    // // Then set all of the requested headers, allowing the
+    // // same header to be set multiple times, e.g. `Set-Cookie`
+    // for (const auto& header : headers) {
+    //   ENVOY_STREAM_LOG(trace, " '{}':'{}'", res_callbacks, header.first.get(), header.second);
+    //   response_headers.addCopy(header.first, header.second);
+    // }
+
+    // res_callbacks_->sendLocalReply(
+    //     response->status_code, response->body,
+    //     [& headers = response->headers_to_add,
+    //      &callbacks = *res_callbacks_](Http::HeaderMap& response_headers) -> void {
+    //       ENVOY_STREAM_LOG(trace,
+    //                        "mgw filter added header(s) to the local response:", callbacks);
+    //       // First remove all headers requested by the mgw filter,
+    //       // to ensure that they will override existing headers
+    //       for (const auto& header : headers) {
+    //         response_headers.remove(header.first);
+    //       }
+    //       // Then set all of the requested headers, allowing the
+    //       // same header to be set multiple times, e.g. `Set-Cookie`
+    //       for (const auto& header : headers) {
+    //         ENVOY_STREAM_LOG(trace, " '{}':'{}'", callbacks, header.first.get(), header.second);
+    //         response_headers.addCopy(header.first, header.second);
+    //       }
+    //     },
+        // absl::nullopt, RcDetails::get().AuthzDenied);
+    // res_callbacks_->streamInfo().setResponseFlag(StreamInfo::ResponseFlag::UnauthorizedExternalService);
+    response_filter_return_ = ResponseFilterReturn::StopEncoding;
+    break;
+  }
+
+  case CheckStatus::Error: {
+    if (downstream_cluster_) {
+      config_->incCounter(downstream_cluster_->statsScope(), config_->mgw_error_);
+    }
+    stats_.error_.inc();
+    if (config_->failureModeAllow()) {
+      ENVOY_STREAM_LOG(trace, "mgw filter allowed the request with error", *res_callbacks_);
+      stats_.failure_mode_allowed_.inc();
+      if (downstream_cluster_) {
+        config_->incCounter(downstream_cluster_->statsScope(), config_->mgw_failure_mode_allowed_);
+      }
+      continueEncoding();
+    } else {
+      ENVOY_STREAM_LOG(
+          trace, "mgw filter rejected the request with an error. Response status code: {}",
+          *res_callbacks_, enumToInt(config_->statusOnError()));
+      //TODO(amalimatharaarachchi) Gracefully handle error response
+      // res_callbacks_->streamInfo().setResponseFlag(
+      //     StreamInfo::ResponseFlag::UnauthorizedExternalService);
+      // res_callbacks_->sendLocalReply(config_->statusOnError(), EMPTY_STRING, nullptr, absl::nullopt,
+      //                            RcDetails::get().AuthzError);
+      response_filter_return_ = ResponseFilterReturn::StopEncoding;
+    }
+    break;
+  }
+
+  default:
+    NOT_REACHED_GCOVR_EXCL_LINE;
+    break;
+  }
+}
+
 // set encode abstract methods overriden
-Http::FilterHeadersStatus Filter::encodeHeaders(Http::ResponseHeaderMap&, bool) {
-  return Http::FilterHeadersStatus::Continue;
+Http::FilterHeadersStatus Filter::encodeHeaders(Http::ResponseHeaderMap& headers, bool) {
+  Router::RouteConstSharedPtr route = res_callbacks_->route();
+  skip_check_ = skipCheckForRoute(route);
+
+  if (!config_->filterEnabled() || skip_check_) {
+    return Http::FilterHeadersStatus::Continue;
+  }
+
+  response_headers_ = &headers;
+
+  // TODO(amalimatharaarachchi) check this
+  // buffer_data_ = config_->withRequestBody() &&
+  //                !(end_stream || Http::Utility::isWebSocketUpgradeRequest(headers) ||
+  //                  Http::Utility::isH2UpgradeRequest(headers));
+  // if (buffer_data_) {
+  //   ENVOY_STREAM_LOG(debug, "mgw filter is buffering the request", *res_callbacks_);
+  //   if (!config_->allowPartialMessage()) {
+  //     res_callbacks_->setDecoderBufferLimit(config_->maxRequestBytes());
+  //   }
+  //   return Http::FilterHeadersStatus::StopIteration;
+  // }
+
+  // Initiate a call to the authorization server since we are not disabled.
+  initiateResponseInterceptCall(headers, route);
+  return response_filter_return_ == ResponseFilterReturn::StopEncoding
+             ? Http::FilterHeadersStatus::StopAllIterationAndWatermark
+             : Http::FilterHeadersStatus::Continue;
 }
 
 Http::FilterHeadersStatus Filter::encode100ContinueHeaders(Http::ResponseHeaderMap&) {
-  return Http::FilterHeadersStatus::Continue;
+  return response_filter_return_ == ResponseFilterReturn::StopEncoding
+             ? Http::FilterHeadersStatus::StopAllIterationAndWatermark
+             : Http::FilterHeadersStatus::Continue;
 }
 
 Http::FilterDataStatus Filter::encodeData(Buffer::Instance&, bool) {
   ENVOY_LOG(info, "[woohoo] inside encode data");
-  return Http::FilterDataStatus::Continue;
+  return response_filter_return_ == ResponseFilterReturn::StopEncoding
+              ? Http::FilterDataStatus::StopIterationAndWatermark
+              : Http::FilterDataStatus::Continue;
 }
 Http::FilterTrailersStatus Filter::encodeTrailers(Http::ResponseTrailerMap&) {
-  return Http::FilterTrailersStatus::Continue;
+  return response_filter_return_ == ResponseFilterReturn::StopEncoding
+             ? Http::FilterTrailersStatus::StopIteration
+             : Http::FilterTrailersStatus::Continue;
 }
 Http::FilterMetadataStatus Filter::encodeMetadata(Http::MetadataMap&) {
   return Http::FilterMetadataStatus::Continue;
 }
 void Filter::setEncoderFilterCallbacks(
     Http::StreamEncoderFilterCallbacks& callbacks) {
-  encoder_callbacks_ = &callbacks;
+    res_callbacks_ = &callbacks;
 }
 ////////////////////
 
@@ -305,6 +460,57 @@ bool Filter::skipCheckForRoute(const Router::RouteConstSharedPtr& route) const {
   }
 
   return false;
+}
+
+////////// Encode methods /////////////////
+
+void Filter::continueEncoding() {
+  response_filter_return_ = ResponseFilterReturn::ContinueEncoding;
+  if (!initiating_responce_call_) {
+    res_callbacks_->continueEncoding();
+  }
+}
+
+void Filter::initiateResponseInterceptCall(const Http::ResponseHeaderMap& headers,
+                                           const Router::RouteConstSharedPtr& route) {
+  if (response_filter_return_ == ResponseFilterReturn::StopEncoding) {
+    return;
+  }
+
+  auto&& maybe_merged_per_route_config =
+      Http::Utility::getMergedPerFilterConfig<FilterConfigPerRoute>(
+          HttpFilterNames::get().MGW, route,
+          [](FilterConfigPerRoute& cfg_base, const FilterConfigPerRoute& cfg) {
+            cfg_base.merge(cfg);
+          });
+
+  Protobuf::Map<std::string, std::string> context_extensions;
+  if (maybe_merged_per_route_config) {
+    context_extensions = maybe_merged_per_route_config.value().takeContextExtensions();
+  }
+
+  // If metadata_context_namespaces is specified, pass matching metadata to the mgw service
+  envoy::config::core::v3::Metadata metadata_context;
+  const auto& response_metadata = res_callbacks_->streamInfo().dynamicMetadata().filter_metadata();
+  for (const auto& context_key : config_->metadataContextNamespaces()) {
+    const auto& metadata_it = response_metadata.find(context_key);
+    if (metadata_it != response_metadata.end()) {
+      (*metadata_context.mutable_filter_metadata())[metadata_it->first] = metadata_it->second;
+    }
+  }
+
+  Filters::Common::MGW::CheckResponseUtils::createHttpCheck(
+      res_callbacks_, headers, std::move(context_extensions), std::move(metadata_context),
+      check_res_request_, config_->maxRequestBytes(), config_->includePeerCertificate());
+
+  ENVOY_STREAM_LOG(trace, "mgw filter calling response interceptor server", *res_callbacks_);
+  res_state_ = State::Calling;
+  response_filter_return_ = ResponseFilterReturn::StopEncoding;
+  cluster_ = res_callbacks_->clusterInfo();
+  initiating_responce_call_ = true;
+  res_client_->intercept(*this, check_res_request_, res_callbacks_->activeSpan(),
+                         res_callbacks_->streamInfo());
+  initiating_responce_call_ = false;
 }
 
 } // namespace MGW

@@ -1,4 +1,4 @@
-#include "extensions/filters/common/mgw/check_request_utils.h"
+#include "extensions/filters/common/mgw/check_response_utils.h"
 
 #include <chrono>
 #include <cstdint>
@@ -99,15 +99,13 @@ void CheckResponseUtils::setRequestTime(envoy::service::mgw_res::v3::AttributeCo
           .count()));
 }
 
-void CheckResponseUtils::setHttpRequest(
+void CheckResponseUtils::setHttpResponse(
     envoy::service::mgw_res::v3::AttributeContext::HttpRequest& httpreq, uint64_t stream_id,
-    const StreamInfo::StreamInfo& stream_info, const Buffer::Instance* decoding_buffer,
-    const Envoy::Http::RequestHeaderMap& headers, uint64_t max_request_bytes) {
+    const StreamInfo::StreamInfo& stream_info, const Buffer::Instance* encoding_buffer,
+    const Envoy::Http::ResponseHeaderMap& headers, uint64_t max_response_bytes) {
   httpreq.set_id(std::to_string(stream_id));
-  httpreq.set_method(getHeaderStr(headers.Method()));
-  httpreq.set_path(getHeaderStr(headers.Path()));
-  httpreq.set_host(getHeaderStr(headers.Host()));
-  httpreq.set_scheme(getHeaderStr(headers.Scheme()));
+  httpreq.set_status(getHeaderStr(headers.Status()));
+  httpreq.set_content_type(getHeaderStr(headers.ContentType()));
   httpreq.set_size(stream_info.bytesReceived());
 
   if (stream_info.protocol()) {
@@ -129,47 +127,49 @@ void CheckResponseUtils::setHttpRequest(
       mutable_headers);
 
   // Set request body.
-  if (max_request_bytes > 0 && decoding_buffer != nullptr) {
-    const uint64_t length = std::min(decoding_buffer->length(), max_request_bytes);
+  if (max_response_bytes > 0 && encoding_buffer != nullptr) {
+    const uint64_t length = std::min(encoding_buffer->length(), max_response_bytes);
     std::string data(length, 0);
-    decoding_buffer->copyOut(0, length, &data[0]);
+    encoding_buffer->copyOut(0, length, &data[0]);
     httpreq.set_body(std::move(data));
 
     // Add in a header to detect when a partial body is used.
     (*mutable_headers)[Http::Headers::get().EnvoyAuthPartialBody.get()] =
-        length != decoding_buffer->length() ? "true" : "false";
+        length != encoding_buffer->length() ? "true" : "false";
   }
 }
 
-void CheckResponseUtils::setAttrContextRequest(
+void CheckResponseUtils::setAttrContextResponse(
     envoy::service::mgw_res::v3::AttributeContext::Request& req, const uint64_t stream_id,
-    const StreamInfo::StreamInfo& stream_info, const Buffer::Instance* decoding_buffer,
-    const Envoy::Http::RequestHeaderMap& headers, uint64_t max_request_bytes) {
+    const StreamInfo::StreamInfo& stream_info, const Buffer::Instance* encoding_buffer,
+    const Envoy::Http::ResponseHeaderMap& headers, uint64_t max_request_bytes) {
   setRequestTime(req, stream_info);
-  setHttpRequest(*req.mutable_http(), stream_id, stream_info, decoding_buffer, headers,
+  setHttpResponse(*req.mutable_http(), stream_id, stream_info, encoding_buffer, headers,
                  max_request_bytes);
 }
 
 void CheckResponseUtils::createHttpCheck(
-    const Envoy::Http::StreamDecoderFilterCallbacks* callbacks,
-    const Envoy::Http::RequestHeaderMap& headers,
+    const Envoy::Http::StreamEncoderFilterCallbacks* callbacks,
+    const Envoy::Http::ResponseHeaderMap& headers,
     Protobuf::Map<std::string, std::string>&& context_extensions,
     envoy::config::core::v3::Metadata&& metadata_context,
-    envoy::service::mgw_res::v3::CheckRequest& request, uint64_t max_request_bytes,
+    envoy::service::mgw_res::v3::CheckRequest& request, uint64_t max_response_bytes,
     bool include_peer_certificate) {
 
   auto attrs = request.mutable_attributes();
-  const std::string service = getHeaderStr(headers.EnvoyDownstreamServiceCluster());
+  // TODO(amalimatharaarachchi)
+  // const std::string service = getHeaderStr(headers.EnvoyDownstreamServiceCluster());
+  const std::string service = "";
 
-  // *cb->connection(), callbacks->streamInfo() and callbacks->decodingBuffer() are not qualified as
+  // *cb->connection(), callbacks->streamInfo() and callbacks->encodingBuffer() are not qualified as
   // const.
-  auto* cb = const_cast<Envoy::Http::StreamDecoderFilterCallbacks*>(callbacks);
+  auto* cb = const_cast<Envoy::Http::StreamEncoderFilterCallbacks*>(callbacks);
   setAttrContextPeer(*attrs->mutable_source(), *cb->connection(), service, false,
                      include_peer_certificate);
   setAttrContextPeer(*attrs->mutable_destination(), *cb->connection(), "", true,
                      include_peer_certificate);
-  setAttrContextRequest(*attrs->mutable_request(), cb->streamId(), cb->streamInfo(),
-                        cb->decodingBuffer(), headers, max_request_bytes);
+  setAttrContextResponse(*attrs->mutable_request(), cb->streamId(), cb->streamInfo(),
+                        cb->encodingBuffer(), headers, max_response_bytes);
 
   // Fill in the context extensions and metadata context.
   (*attrs->mutable_context_extensions()) = std::move(context_extensions);
@@ -189,7 +189,7 @@ void CheckResponseUtils::createTcpCheck(const Network::ReadFilterCallbacks* call
                      include_peer_certificate);
 }
 
-} // namespace MGWRes
+} // namespace MGW
 } // namespace Common
 } // namespace Filters
 } // namespace Extensions

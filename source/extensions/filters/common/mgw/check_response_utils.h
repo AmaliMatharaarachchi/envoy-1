@@ -48,12 +48,12 @@ public:
    * @param with_request_body when true, will add the request body to the check request.
    * @param include_peer_certificate whether to include the peer certificate in the check request.
    */
-  static void createHttpCheck(const Envoy::Http::StreamDecoderFilterCallbacks* callbacks,
-                              const Envoy::Http::RequestHeaderMap& headers,
+  static void createHttpCheck(const Envoy::Http::StreamEncoderFilterCallbacks* callbacks,
+                              const Envoy::Http::ResponseHeaderMap& headers,
                               Protobuf::Map<std::string, std::string>&& context_extensions,
                               envoy::config::core::v3::Metadata&& metadata_context,
                               envoy::service::mgw_res::v3::CheckRequest& request,
-                              uint64_t max_request_bytes, bool include_peer_certificate);
+                              uint64_t max_response_bytes, bool include_peer_certificate);
 
   /**
    * createTcpCheck is used to extract the attributes from the network layer and fill them up
@@ -72,22 +72,22 @@ private:
                                  const bool local, bool include_certificate);
   static void setRequestTime(envoy::service::mgw_res::v3::AttributeContext::Request& req,
                              const StreamInfo::StreamInfo& stream_info);
-  static void setHttpRequest(envoy::service::mgw_res::v3::AttributeContext::HttpRequest& httpreq,
+  static void setHttpResponse(envoy::service::mgw_res::v3::AttributeContext::HttpRequest& httpreq,
                              const uint64_t stream_id, const StreamInfo::StreamInfo& stream_info,
-                             const Buffer::Instance* decoding_buffer,
-                             const Envoy::Http::RequestHeaderMap& headers,
+                             const Buffer::Instance* encoding_buffer,
+                             const Envoy::Http::ResponseHeaderMap& headers,
                              uint64_t max_request_bytes);
-  static void setAttrContextRequest(envoy::service::mgw_res::v3::AttributeContext::Request& req,
+  static void setAttrContextResponse(envoy::service::mgw_res::v3::AttributeContext::Request& req,
                                     const uint64_t stream_id,
                                     const StreamInfo::StreamInfo& stream_info,
-                                    const Buffer::Instance* decoding_buffer,
-                                    const Envoy::Http::RequestHeaderMap& headers,
-                                    uint64_t max_request_bytes);
+                                    const Buffer::Instance* encoding_buffer,
+                                    const Envoy::Http::ResponseHeaderMap& headers,
+                                    uint64_t max_response_bytes);
   static std::string getHeaderStr(const Envoy::Http::HeaderEntry* entry);
   static Envoy::Http::HeaderMap::Iterate fillHttpHeaders(const Envoy::Http::HeaderEntry&, void*);
 };
 
-} // namespace MGWRes
+} // namespace MGW
 } // namespace Common
 } // namespace Filters
 } // namespace Extensions

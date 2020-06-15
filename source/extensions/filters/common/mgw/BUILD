@@ -16,6 +16,7 @@ envoy_cc_library(
         "//include/envoy/stream_info:stream_info_interface",
         "//source/common/tracing:http_tracer_lib",
         "@envoy_api//envoy/service/auth/v3:pkg_cc_proto",
+        "@envoy_api//envoy/service/mgw_res/v3:pkg_cc_proto",
     ],
 )
 
@@ -25,6 +26,35 @@ envoy_cc_library(
     hdrs = ["mgw_grpc_impl.h"],
     deps = [
         ":check_request_utils_lib",
+        ":mgw_interface",
+        "//include/envoy/grpc:async_client_interface",
+        "//include/envoy/grpc:async_client_manager_interface",
+        "//include/envoy/http:filter_interface",
+        "//include/envoy/http:header_map_interface",
+        "//include/envoy/http:protocol_interface",
+        "//include/envoy/network:address_interface",
+        "//include/envoy/network:connection_interface",
+        "//include/envoy/network:filter_interface",
+        "//include/envoy/upstream:cluster_manager_interface",
+        "//source/common/common:assert_lib",
+        "//source/common/grpc:async_client_lib",
+        "//source/common/grpc:typed_async_client_lib",
+        "//source/common/http:headers_lib",
+        "//source/common/http:utility_lib",
+        "//source/common/network:utility_lib",
+        "//source/common/protobuf",
+        "//source/common/tracing:http_tracer_lib",
+        "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
+        "@envoy_api//envoy/service/auth/v3:pkg_cc_proto",
+    ],
+)
+
+envoy_cc_library(
+    name = "mgw_res_grpc_lib",
+    srcs = ["mgw_res_grpc_impl.cc"],
+    hdrs = ["mgw_res_grpc_impl.h"],
+    deps = [
+        ":check_response_utils_lib",
         ":mgw_interface",
         "//include/envoy/grpc:async_client_interface",
         "//include/envoy/grpc:async_client_manager_interface",
@@ -80,5 +110,20 @@ envoy_cc_library(
         "//source/common/grpc:async_client_lib",
         "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
         "@envoy_api//envoy/service/auth/v3:pkg_cc_proto",
+    ],
+)
+
+envoy_cc_library(
+    name = "check_response_utils_lib",
+    srcs = ["check_response_utils.cc"],
+    hdrs = ["check_response_utils.h"],
+    deps = [
+        "//include/envoy/grpc:async_client_interface",
+        "//include/envoy/grpc:async_client_manager_interface",
+        "//include/envoy/http:filter_interface",
+        "//include/envoy/upstream:cluster_manager_interface",
+        "//source/common/grpc:async_client_lib",
+        "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
+        "@envoy_api//envoy/service/mgw_res/v3:pkg_cc_proto",
     ],
 )
