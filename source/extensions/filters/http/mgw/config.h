@@ -27,6 +27,7 @@ private:
       const envoy::extensions::filters::http::mgw::v3::MGW& proto_config,
       const std::string& stats_prefix, Server::Configuration::FactoryContext& context) override;
 
+  // filter support for route specific 
   Router::RouteSpecificFilterConfigConstSharedPtr createRouteSpecificFilterConfigTyped(
       const envoy::extensions::filters::http::mgw::v3::MGWPerRoute& proto_config,
       Server::Configuration::ServerFactoryContext& context,

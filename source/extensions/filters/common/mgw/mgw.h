@@ -76,14 +76,14 @@ public:
 };
 
 /**
- * Async callbacks used during check() calls.
+ * Async callbacks used during response incept() calls.
  */
 class ResponseCallbacks {
 public:
   virtual ~ResponseCallbacks() = default;
 
   /**
-   * Called when a check request is complete. The resulting ResponsePtr is supplied.
+   * Called when a intercept request is complete. The resulting ResponsePtr is supplied.
    */
   virtual void onResponseComplete(ResponsePtr&& response) PURE;
 };
@@ -99,7 +99,7 @@ public:
   virtual void cancel() PURE;
 
   /**
-   * Request a check call to an external authorization service which can use the
+   * Request a intercept call to an external authorization service which can use the
    * passed request parameters to make a permit/deny decision.
    * @param callback supplies the completion callbacks.
    *        NOTE: The callback may happen within the calling stack.
@@ -131,12 +131,12 @@ public:
    *        NOTE: The callback may happen within the calling stack.
    * @param request is the proto message with the attributes of the specific payload.
    * @param parent_span source for generating an egress child span as part of the trace.
-   * @param stream_info supplies the client's stream info.
+   * @param res_stream_info supplies the client's stream info.
    */
   virtual void intercept(ResponseCallbacks& callback,
                          const envoy::service::mgw_res::v3::CheckRequest& request,
                          Tracing::Span& parent_span,
-                         const StreamInfo::StreamInfo& stream_info) PURE;
+                         const StreamInfo::StreamInfo& res_stream_info) PURE;
 };
 
 using ResClientPtr = std::unique_ptr<ResClient>;

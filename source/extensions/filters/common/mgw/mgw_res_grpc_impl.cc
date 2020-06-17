@@ -16,8 +16,7 @@ namespace Filters {
 namespace Common {
 namespace MGW {
 
-// Values used for selecting service paths.
-// TODO(gsagula): keep only V2 when V2Alpha gets deprecated.
+// selecting service path.
 constexpr char V2[] = "envoy.service.mgw_res.v2.MGWResponse.Intercept";
 
 GrpcResClientImpl::GrpcResClientImpl(Grpc::RawAsyncClientPtr&& async_client,
@@ -79,6 +78,7 @@ void GrpcResClientImpl::onFailure(Grpc::Status::GrpcStatus status, const std::st
   callbacks_ = nullptr;
 }
 
+// TODO(amalimatharaarachchi) change the response to be accordingly to intercept service. This is same as the old authz success way for request path
 void GrpcResClientImpl::toAuthzResponseHeader(
     ResponsePtr& response,
     const Protobuf::RepeatedPtrField<envoy::config::core::v3::HeaderValueOption>& headers) {

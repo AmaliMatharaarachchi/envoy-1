@@ -30,13 +30,9 @@ namespace Extensions {
 namespace HttpFilters {
 namespace MGW {
 
-/**
- * Type of requests the filter should apply to.
- */
-enum class FilterRequestType { Internal, External, Both };
 
 /**
- * All stats for the Ext Authz filter. @see stats_macros.h
+ * All stats for the mgw filter. @see stats_macros.h
  */
 
 #define ALL_mgw_FILTER_STATS(COUNTER)                                                        \
@@ -53,7 +49,7 @@ struct MGWFilterStats {
 };
 
 /**
- * Configuration for the External Authorization (mgw) filter.
+ * Configuration for the External mgw filter.
  */
 class FilterConfig {
 public:
@@ -228,64 +224,62 @@ public:
 
   // MGW::RequestCallbacks
   void onComplete(Filters::Common::MGW::ResponsePtr&&) override;
+  // MGW::ResponseCallbacks
   void onResponseComplete(Filters::Common::MGW::ResponsePtr&&) override;
 
 private:
   void addResponseHeaders(Http::HeaderMap& header_map, const Http::HeaderVector& headers);
-  void initiateCall(const Http::RequestHeaderMap& headers,
-                    const Router::RouteConstSharedPtr& route);
-  void initiateResponseInterceptCall(const Http::ResponseHeaderMap& headers,
-                    const Router::RouteConstSharedPtr& route);
-  void continueDecoding();
-  void continueEncoding();
-  bool isBufferFull() const;
-  bool skipCheckForRoute(const Router::RouteConstSharedPtr& route) const;
-
-  bool skipCheckForResRoute(const Router::RouteConstSharedPtr& route) const;
-
   // State of this filter's communication with the external decode/encode service.
   // The filter has either not started calling the external service, in the middle of calling
   // it or has completed.
   enum class State { NotStarted, Calling, Complete };
+  FilterConfigSharedPtr config_;
+  bool buffer_data_{};
+  bool skip_check_{false};
 
+  ////// request path members
+  void initiateCall(const Http::RequestHeaderMap& headers,
+                    const Router::RouteConstSharedPtr& route);
+  void continueDecoding();
+  bool skipCheckForRoute(const Router::RouteConstSharedPtr& route) const;
   // FilterReturn is used to capture what the return code should be to the filter chain.
   // if this filter is either in the middle of calling the service or the result is denied then
   // the filter chain should stop. Otherwise the filter chain can continue to the next filter.
   enum class FilterReturn { ContinueDecoding, StopDecoding };
+  Filters::Common::MGW::ClientPtr client_;
+  Http::StreamDecoderFilterCallbacks* callbacks_{};
+  Http::RequestHeaderMap* request_headers_;
+  State state_{State::NotStarted}; // state of request check service
+  FilterReturn filter_return_{FilterReturn::ContinueDecoding};
+  Upstream::ClusterInfoConstSharedPtr cluster_;
+  // Used to identify if the callback to onComplete() is synchronous (on the stack) or asynchronous.
+  bool initiating_call_{};
+  envoy::service::auth::v3::CheckRequest check_request_{};
+  bool isBufferFull() const;
 
+  ////// response path members
+  void initiateResponseInterceptCall(const Http::ResponseHeaderMap& headers,
+                    const Router::RouteConstSharedPtr& route);
+  void continueEncoding();
+  bool skipCheckForResRoute(const Router::RouteConstSharedPtr& route) const;
   // FilterReturn is used to capture what the return code should be to the filter chain.
   // if this filter is either in the middle of calling the service or the result is denied then
   // the filter chain should stop. Otherwise the filter chain can continue to the next filter.
   enum class ResponseFilterReturn { ContinueEncoding, StopEncoding };
-
-  Http::HeaderMapPtr getHeaderMap(const Filters::Common::MGW::ResponsePtr& response);
-  FilterConfigSharedPtr config_;
-  Filters::Common::MGW::ClientPtr client_;
-  Filters::Common::MGW::ResClientPtr res_client_; //response
-  Http::StreamDecoderFilterCallbacks* callbacks_{};
+  Filters::Common::MGW::ResClientPtr res_client_;
   Http::StreamEncoderFilterCallbacks* res_callbacks_{};
-  Http::RequestHeaderMap* request_headers_;
   Http::ResponseHeaderMap* response_headers_;
-  State state_{State::NotStarted}; //state of request interceptor service
   State res_state_{State::NotStarted}; //state of response interceptor service
-  FilterReturn filter_return_{FilterReturn::ContinueDecoding};
   ResponseFilterReturn response_filter_return_{ResponseFilterReturn::ContinueEncoding};
   //TODO(amalimatharaarachchi) upstream cluster is used for downstream
   Upstream::ClusterInfoConstSharedPtr downstream_cluster_;
-  Upstream::ClusterInfoConstSharedPtr cluster_;
-  // The stats for the filter.
-  MGWFilterStats stats_;
-
-  // Used to identify if the callback to onComplete() is synchronous (on the stack) or asynchronous.
-  bool initiating_call_{};
   // Used to identify if the response callback to onComplete() is synchronous (on the stack) or asynchronous.
   bool initiating_responce_call_{};
-  bool buffer_data_{};
+  envoy::service::mgw_res::v3::CheckRequest res_intercept_request_{};
+  bool isResBufferFull() const;
 
-  bool skip_check_{false};
-  bool skip_res_check_{false};
-  envoy::service::auth::v3::CheckRequest check_request_{};
-  envoy::service::mgw_res::v3::CheckRequest check_res_request_{};
+  // The stats for the filter.
+  MGWFilterStats stats_;
 };
 
 } // namespace MGW

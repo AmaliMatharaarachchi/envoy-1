@@ -27,6 +27,7 @@ Http::FilterFactoryCb MGWFilterConfig::createFilterFactoryFromProtoTyped(
                                      context.runtime(), context.httpContext(), stats_prefix);
   Http::FilterFactoryCb callback;
 
+  // TODO(amalimatharaarachchi) add http service for the response intercept call if only needed.
   // if (proto_config.has_http_service()) {
   //   // Raw HTTP client.
   //   const uint32_t timeout_ms = PROTOBUF_GET_MS_OR_DEFAULT(proto_config.http_service().server_uri(),
@@ -43,21 +44,21 @@ Http::FilterFactoryCb MGWFilterConfig::createFilterFactoryFromProtoTyped(
   //   };
   // } else {
     // gRPC client.
-    const uint32_t timeout_ms =
-        PROTOBUF_GET_MS_OR_DEFAULT(proto_config.grpc_service(), timeout, DefaultTimeout);
-    callback = [grpc_service = proto_config.grpc_service(), &context, filter_config, timeout_ms,
-                use_alpha = proto_config.hidden_envoy_deprecated_use_alpha()](
-                   Http::FilterChainFactoryCallbacks& callbacks) {
-      const auto async_client_factory =
-          context.clusterManager().grpcAsyncClientManager().factoryForGrpcService(
-              grpc_service, context.scope(), true);
-      auto client = std::make_unique<Filters::Common::MGW::GrpcClientImpl>(
-          async_client_factory->create(), std::chrono::milliseconds(timeout_ms), use_alpha);
-      auto res_client = std::make_unique<Filters::Common::MGW::GrpcResClientImpl>(
-          async_client_factory->create(), std::chrono::milliseconds(timeout_ms));
-      callbacks.addStreamFilter(Http::StreamFilterSharedPtr{
-          std::make_shared<Filter>(filter_config, std::move(client), std::move(res_client))});
-    };
+  const uint32_t timeout_ms =
+      PROTOBUF_GET_MS_OR_DEFAULT(proto_config.grpc_service(), timeout, DefaultTimeout);
+  callback = [grpc_service = proto_config.grpc_service(), &context, filter_config, timeout_ms,
+              use_alpha = proto_config.hidden_envoy_deprecated_use_alpha()](
+                  Http::FilterChainFactoryCallbacks& callbacks) {
+    const auto async_client_factory =
+        context.clusterManager().grpcAsyncClientManager().factoryForGrpcService(
+            grpc_service, context.scope(), true);
+    auto client = std::make_unique<Filters::Common::MGW::GrpcClientImpl>(
+        async_client_factory->create(), std::chrono::milliseconds(timeout_ms), use_alpha);
+    auto res_client = std::make_unique<Filters::Common::MGW::GrpcResClientImpl>(
+        async_client_factory->create(), std::chrono::milliseconds(timeout_ms));
+    callbacks.addStreamFilter(Http::StreamFilterSharedPtr{
+        std::make_shared<Filter>(filter_config, std::move(client), std::move(res_client))});
+  };
   // }
 
   return callback;
@@ -71,7 +72,7 @@ MGWFilterConfig::createRouteSpecificFilterConfigTyped(
 }
 
 /**
- * Static registration for the external authorization filter. @see RegisterFactory.
+ * Static registration for the mgw filter. @see RegisterFactory.
  */
 REGISTER_FACTORY(MGWFilterConfig,
                  Server::Configuration::NamedHttpFilterConfigFactory){"envoy.mgw"};

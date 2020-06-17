@@ -34,7 +34,7 @@ using MGWAsyncResCallbacks = Grpc::AsyncRequestCallbacks<envoy::service::mgw_res
 /*
  * This client implementation is used when the mgw filter needs to communicate with an gRPC
  * mgw response filter server. Unlike the HTTP client, the gRPC allows the server to define response
- * objects which contain the HTTP attributes to be sent to the upstream or to the downstream client.
+ * objects which contain the HTTP attributes to be sent to the the downstream client.
  * The gRPC client does not rewrite path. NOTE: We create gRPC client for each filter stack instead
  * of a client per thread. That is ok since this is unary RPC and the cost of doing this is minimal.
  */
@@ -62,11 +62,13 @@ private:
   void toAuthzResponseHeader(
       ResponsePtr& response,
       const Protobuf::RepeatedPtrField<envoy::config::core::v3::HeaderValueOption>& headers);
+  // grpc intercept method descriptor
   const Protobuf::MethodDescriptor& service_method_;
-  Grpc::AsyncClient<envoy::service::mgw_res::v3::CheckRequest,
-                    envoy::service::mgw_res::v3::CheckResponse>
-      async_client_;
+  //grpc async client
+  Grpc::AsyncClient<envoy::service::mgw_res::v3::CheckRequest, envoy::service::mgw_res::v3::CheckResponse> async_client_;
   Grpc::AsyncRequest* request_{};
+
+  //timeout for the intercept grpc client service
   absl::optional<std::chrono::milliseconds> timeout_;
   ResponseCallbacks* callbacks_{};
 };
