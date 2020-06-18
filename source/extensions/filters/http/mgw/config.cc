@@ -22,8 +22,11 @@ namespace MGW {
 Http::FilterFactoryCb MGWFilterConfig::createFilterFactoryFromProtoTyped(
     const envoy::extensions::filters::http::mgw::v3::MGW& proto_config,
     const std::string& stats_prefix, Server::Configuration::FactoryContext& context) {
-  const auto filter_config =
-      std::make_shared<FilterConfig>(proto_config, context.localInfo(), context.scope(),
+  const auto req_filter_config =
+      std::make_shared<FilterConfig>(proto_config.request(), context.localInfo(), context.scope(),
+                                     context.runtime(), context.httpContext(), stats_prefix);
+  const auto res_filter_config =
+      std::make_shared<FilterConfig>(proto_config.request(), context.localInfo(), context.scope(),
                                      context.runtime(), context.httpContext(), stats_prefix);
   Http::FilterFactoryCb callback;
 
@@ -44,22 +47,28 @@ Http::FilterFactoryCb MGWFilterConfig::createFilterFactoryFromProtoTyped(
   //   };
   // } else {
     // gRPC client.
-  const uint32_t timeout_ms =
-      PROTOBUF_GET_MS_OR_DEFAULT(proto_config.grpc_service(), timeout, DefaultTimeout);
-  callback = [grpc_service = proto_config.grpc_service(), &context, filter_config, timeout_ms,
-              use_alpha = proto_config.hidden_envoy_deprecated_use_alpha()](
-                  Http::FilterChainFactoryCallbacks& callbacks) {
-    const auto async_client_factory =
+  const uint32_t req_timeout_ms =
+      PROTOBUF_GET_MS_OR_DEFAULT(proto_config.request().grpc_service(), timeout, DefaultTimeout);
+  const uint32_t res_timeout_ms =
+      PROTOBUF_GET_MS_OR_DEFAULT(proto_config.response().grpc_service(), timeout, DefaultTimeout);
+  callback = [req_grpc_service = proto_config.request().grpc_service(),
+              res_grpc_service = proto_config.response().grpc_service(), &context,
+              req_filter_config, res_filter_config, req_timeout_ms,
+              res_timeout_ms](Http::FilterChainFactoryCallbacks& callbacks) {
+    const auto req_async_client_factory =
         context.clusterManager().grpcAsyncClientManager().factoryForGrpcService(
-            grpc_service, context.scope(), true);
-    auto client = std::make_unique<Filters::Common::MGW::GrpcClientImpl>(
-        async_client_factory->create(), std::chrono::milliseconds(timeout_ms), use_alpha);
+            req_grpc_service, context.scope(), true);
+    const auto res_async_client_factory =
+        context.clusterManager().grpcAsyncClientManager().factoryForGrpcService(
+            res_grpc_service, context.scope(), true);
+    auto req_client = std::make_unique<Filters::Common::MGW::GrpcClientImpl>(
+        req_async_client_factory->create(), std::chrono::milliseconds(req_timeout_ms));
     auto res_client = std::make_unique<Filters::Common::MGW::GrpcResClientImpl>(
-        async_client_factory->create(), std::chrono::milliseconds(timeout_ms));
-    callbacks.addStreamFilter(Http::StreamFilterSharedPtr{
-        std::make_shared<Filter>(filter_config, std::move(client), std::move(res_client))});
+        res_async_client_factory->create(), std::chrono::milliseconds(res_timeout_ms));
+    callbacks.addStreamFilter(Http::StreamFilterSharedPtr{std::make_shared<Filter>(
+        req_filter_config, res_filter_config, std::move(req_client), std::move(res_client))});
+
   };
-  // }
 
   return callback;
 };

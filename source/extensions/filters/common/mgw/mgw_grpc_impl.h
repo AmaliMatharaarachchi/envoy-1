@@ -40,9 +40,8 @@ using MGWAsyncCallbacks = Grpc::AsyncRequestCallbacks<envoy::service::auth::v3::
  */
 class GrpcClientImpl : public Client, public MGWAsyncCallbacks {
 public:
-  // TODO(gsagula): remove `use_alpha` param when V2Alpha gets deprecated.
   GrpcClientImpl(Grpc::RawAsyncClientPtr&& async_client,
-                 const absl::optional<std::chrono::milliseconds>& timeout, bool use_alpha);
+                 const absl::optional<std::chrono::milliseconds>& timeout);
   ~GrpcClientImpl() override;
 
   // MGW::Client
@@ -58,7 +57,7 @@ public:
                  Tracing::Span& span) override;
 
 private:
-  static const Protobuf::MethodDescriptor& getMethodDescriptor(bool use_alpha);
+  static const Protobuf::MethodDescriptor& getMethodDescriptor();
   void toAuthzResponseHeader(
       ResponsePtr& response,
       const Protobuf::RepeatedPtrField<envoy::config::core::v3::HeaderValueOption>& headers);

@@ -22,14 +22,25 @@ option (udpa.annotations.file_status).package_version_status = ACTIVE;
 // External Authorization :ref:`configuration overview <config_http_filters_mgw>`.
 // [#extension: envoy.filters.http.mgw]
 
-// [#next-free-field: 11]
 message MGW {
   option (udpa.annotations.versioning).previous_message_type =
       "envoy.config.filter.http.mgw.v2.MGW";
 
+  // Request path configs
+  Path request = 1;
+
+  // Response path configs
+  Path response = 2;
+}
+
+// [#next-free-field: 11]
+message Path {
+  option (udpa.annotations.versioning).previous_message_type =
+      "envoy.config.filter.http.mgw.v2.Path";
+
   reserved 4;
 
-  reserved "use_alpha";
+  // reserved "use_alpha";
 
   // External authorization service configuration.
   oneof services {

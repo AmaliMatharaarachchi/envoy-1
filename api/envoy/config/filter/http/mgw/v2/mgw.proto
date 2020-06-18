@@ -23,8 +23,16 @@ option (udpa.annotations.file_status).package_version_status = FROZEN;
 // External Authorization :ref:`configuration overview <config_http_filters_mgw>`.
 // [#extension: envoy.filters.http.mgw]
 
-// [#next-free-field: 11]
 message MGW {
+  // Request path configs
+  Path request = 1;
+
+  // Response path configs
+  Path response = 2;
+}
+
+// [#next-free-field: 11]
+message Path {
   // External authorization service configuration.
   oneof services {
     // gRPC service configuration (default timeout: 200ms).
@@ -52,7 +60,7 @@ message MGW {
   // useful when transitioning from alpha to release versions assuming that both definitions are
   // semantically compatible. Deprecation note: This field is deprecated and should only be used for
   // version upgrade. See release notes for more details.
-  bool use_alpha = 4 [deprecated = true, (envoy.annotations.disallowed_by_default) = true];
+  // bool use_alpha = 4 [deprecated = true, (envoy.annotations.disallowed_by_default) = true];
 
   // Enables filter to buffer the client request body and send it within the authorization request.
   // A ``x-envoy-auth-partial-body: false|true`` metadata header will be added to the authorization

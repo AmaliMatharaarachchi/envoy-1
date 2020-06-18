@@ -22,10 +22,23 @@ option (udpa.annotations.file_status).package_version_status = ACTIVE;
 // External Authorization :ref:`configuration overview <config_http_filters_mgw>`.
 // [#extension: envoy.filters.http.mgw]
 
-// [#next-free-field: 11]
 message MGW {
   option (udpa.annotations.versioning).previous_message_type =
       "envoy.config.filter.http.mgw.v2.MGW";
+
+  // Request path configs
+  Path request = 1;
+
+  // Response path configs
+  Path response = 2;
+}
+
+// [#next-free-field: 11]
+message Path {
+  option (udpa.annotations.versioning).previous_message_type =
+      "envoy.config.filter.http.mgw.v2.Path";
+
+  reserved 4;
 
   // gRPC service configuration (default timeout: 200ms).
   bool failure_mode_allow = 2;
@@ -82,23 +95,22 @@ message MGW {
   //
   bool include_peer_certificate = 10;
 
-  // Specifies if the filter is enabled.
-  //
-  // If :ref:`runtime_key <envoy_api_field_config.core.v3.RuntimeFractionalPercent.runtime_key>` is specified,
-  // Envoy will lookup the runtime key to get the percentage of requests to filter.
-  //
-  // If this field is not specified, the filter will be enabled for all requests.
-  bool hidden_envoy_deprecated_use_alpha = 4
-      [deprecated = true, (envoy.annotations.disallowed_by_default) = true];
+  // reserved "use_alpha";
 
   // External authorization service configuration.
   oneof services {
+    // Specifies if the filter is enabled.
+    //
+    // If :ref:`runtime_key <envoy_api_field_config.core.v3.RuntimeFractionalPercent.runtime_key>` is specified,
+    // Envoy will lookup the runtime key to get the percentage of requests to filter.
+    //
+    // If this field is not specified, the filter will be enabled for all requests.
+    config.core.v3.GrpcService grpc_service = 1;
+
     // Specifies if the peer certificate is sent to the external service.
     //
     // When this field is true, Envoy will include the peer X.509 certificate, if available, in the
     // :ref:`certificate<envoy_api_field_service.auth.v3.AttributeContext.Peer.certificate>`.
-    config.core.v3.GrpcService grpc_service = 1;
-
     HttpService http_service = 3;
   }
 }

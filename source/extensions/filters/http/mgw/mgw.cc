@@ -54,7 +54,7 @@ void Filter::initiateCall(const Http::RequestHeaderMap& headers,
   // If metadata_context_namespaces is specified, pass matching metadata to the mgw service
   envoy::config::core::v3::Metadata metadata_context;
   const auto& request_metadata = callbacks_->streamInfo().dynamicMetadata().filter_metadata();
-  for (const auto& context_key : config_->metadataContextNamespaces()) {
+  for (const auto& context_key : req_config_->metadataContextNamespaces()) {
     const auto& metadata_it = request_metadata.find(context_key);
     if (metadata_it != request_metadata.end()) {
       (*metadata_context.mutable_filter_metadata())[metadata_it->first] = metadata_it->second;
@@ -63,7 +63,7 @@ void Filter::initiateCall(const Http::RequestHeaderMap& headers,
 
   Filters::Common::MGW::CheckRequestUtils::createHttpCheck(
       callbacks_, headers, std::move(context_extensions), std::move(metadata_context),
-      check_request_, config_->maxRequestBytes(), config_->includePeerCertificate());
+      check_request_, req_config_->maxRequestBytes(), req_config_->includePeerCertificate());
 
   ENVOY_STREAM_LOG(trace, "mgw filter calling authorization server", *callbacks_);
   state_ = State::Calling;
@@ -79,20 +79,20 @@ Http::FilterHeadersStatus Filter::decodeHeaders(Http::RequestHeaderMap& headers,
   Router::RouteConstSharedPtr route = callbacks_->route();
   skip_check_ = skipCheckForRoute(route);
 
-  if (!config_->filterEnabled() || skip_check_) {
+  if (!req_config_->filterEnabled() || skip_check_) {
     return Http::FilterHeadersStatus::Continue;
   }
 
   request_headers_ = &headers;
 
   // TODO(amalimatharaarachchi) review buffering
-  buffer_data_ = config_->withRequestBody() &&
+  buffer_data_ = req_config_->withRequestBody() &&
                  !(end_stream || Http::Utility::isWebSocketUpgradeRequest(headers) ||
                    Http::Utility::isH2UpgradeRequest(headers));
   if (buffer_data_) {
     ENVOY_STREAM_LOG(debug, "mgw filter is buffering the request", *callbacks_);
-    if (!config_->allowPartialMessage()) {
-      callbacks_->setDecoderBufferLimit(config_->maxRequestBytes());
+    if (!req_config_->allowPartialMessage()) {
+      callbacks_->setDecoderBufferLimit(req_config_->maxRequestBytes());
     }
     return Http::FilterHeadersStatus::StopIteration;
   }
@@ -160,7 +160,7 @@ void Filter::onComplete(Filters::Common::MGW::ResponsePtr&& response) {
   switch (response->status) {
   case CheckStatus::OK: {
     ENVOY_STREAM_LOG(trace, "mgw filter added header(s) to the request:", *callbacks_);
-    if (config_->clearRouteCache() &&
+    if (req_config_->clearRouteCache() &&
         (!response->headers_to_add.empty() || !response->headers_to_append.empty())) {
       ENVOY_STREAM_LOG(debug, "mgw is clearing route cache", *callbacks_);
       callbacks_->clearRouteCache();
@@ -177,9 +177,9 @@ void Filter::onComplete(Filters::Common::MGW::ResponsePtr&& response) {
       }
     }
     if (cluster_) {
-      config_->incCounter(cluster_->statsScope(), config_->mgw_ok_);
+      req_config_->incCounter(cluster_->statsScope(), req_config_->mgw_ok_);
     }
-    stats_.ok_.inc();
+    req_stats_.ok_.inc();
     continueDecoding();
     break;
   }
@@ -187,12 +187,12 @@ void Filter::onComplete(Filters::Common::MGW::ResponsePtr&& response) {
   case CheckStatus::Denied: {
     ENVOY_STREAM_LOG(trace, "mgw filter rejected the request. Response status code: '{}",
                      *callbacks_, enumToInt(response->status_code));
-    stats_.denied_.inc();
+    req_stats_.denied_.inc();
 
     if (cluster_) {
-      config_->incCounter(cluster_->statsScope(), config_->mgw_denied_);
+      req_config_->incCounter(cluster_->statsScope(), req_config_->mgw_denied_);
 
-      Http::CodeStats::ResponseStatInfo info{config_->scope(),
+      Http::CodeStats::ResponseStatInfo info{req_config_->scope(),
                                              cluster_->statsScope(),
                                              empty_stat_name,
                                              enumToInt(response->status_code),
@@ -202,7 +202,7 @@ void Filter::onComplete(Filters::Common::MGW::ResponsePtr&& response) {
                                              empty_stat_name,
                                              empty_stat_name,
                                              false};
-      config_->httpContext().codeStats().chargeResponseStat(info);
+      req_config_->httpContext().codeStats().chargeResponseStat(info);
     }
 
     callbacks_->sendLocalReply(
@@ -229,23 +229,23 @@ void Filter::onComplete(Filters::Common::MGW::ResponsePtr&& response) {
 
   case CheckStatus::Error: {
     if (cluster_) {
-      config_->incCounter(cluster_->statsScope(), config_->mgw_error_);
+      req_config_->incCounter(cluster_->statsScope(), req_config_->mgw_error_);
     }
-    stats_.error_.inc();
-    if (config_->failureModeAllow()) {
+    req_stats_.error_.inc();
+    if (req_config_->failureModeAllow()) {
       ENVOY_STREAM_LOG(trace, "mgw filter allowed the request with error", *callbacks_);
-      stats_.failure_mode_allowed_.inc();
+      req_stats_.failure_mode_allowed_.inc();
       if (cluster_) {
-        config_->incCounter(cluster_->statsScope(), config_->mgw_failure_mode_allowed_);
+        req_config_->incCounter(cluster_->statsScope(), req_config_->mgw_failure_mode_allowed_);
       }
       continueDecoding();
     } else {
       ENVOY_STREAM_LOG(trace,
                        "mgw filter rejected the request with an error. Response status code: {}",
-                       *callbacks_, enumToInt(config_->statusOnError()));
+                       *callbacks_, enumToInt(req_config_->statusOnError()));
       callbacks_->streamInfo().setResponseFlag(
           StreamInfo::ResponseFlag::UnauthorizedExternalService);
-      callbacks_->sendLocalReply(config_->statusOnError(), EMPTY_STRING, nullptr, absl::nullopt,
+      callbacks_->sendLocalReply(req_config_->statusOnError(), EMPTY_STRING, nullptr, absl::nullopt,
                                  RcDetails::get().AuthzError);
     }
     break;
@@ -259,8 +259,8 @@ void Filter::onComplete(Filters::Common::MGW::ResponsePtr&& response) {
 
 bool Filter::isBufferFull() const {
   const auto* buffer = callbacks_->decodingBuffer();
-  if (config_->allowPartialMessage() && buffer != nullptr) {
-    return buffer->length() >= config_->maxRequestBytes();
+  if (req_config_->allowPartialMessage() && buffer != nullptr) {
+    return buffer->length() >= req_config_->maxRequestBytes();
   }
   return false;
 }
@@ -277,20 +277,20 @@ Http::FilterHeadersStatus Filter::encodeHeaders(Http::ResponseHeaderMap& headers
   Router::RouteConstSharedPtr route = res_callbacks_->route();
   skip_check_ = skipCheckForRoute(route);
 
-  if (!config_->filterEnabled() || skip_check_) {
+  if (!res_config_->filterEnabled() || skip_check_) {
     return Http::FilterHeadersStatus::Continue;
   }
 
   response_headers_ = &headers;
 
   // TODO(amalimatharaarachchi) check this
-  // buffer_data_ = config_->withRequestBody() &&
+  // buffer_data_ = req_config_->withRequestBody() &&
   //                !(end_stream || Http::Utility::isWebSocketUpgradeRequest(headers) ||
   //                  Http::Utility::isH2UpgradeRequest(headers));
   // if (buffer_data_) {
   //   ENVOY_STREAM_LOG(debug, "mgw filter is buffering the request", *res_callbacks_);
-  //   if (!config_->allowPartialMessage()) {
-  //     res_callbacks_->setDecoderBufferLimit(config_->maxRequestBytes());
+  //   if (!req_config_->allowPartialMessage()) {
+  //     res_callbacks_->setDecoderBufferLimit(req_config_->maxRequestBytes());
   //   }
   //   return Http::FilterHeadersStatus::StopIteration;
   // }
@@ -367,8 +367,8 @@ void Filter::setEncoderFilterCallbacks(Http::StreamEncoderFilterCallbacks& callb
 
 bool Filter::isResBufferFull() const {
   const auto* buffer = res_callbacks_->encodingBuffer();
-  if (config_->allowPartialMessage() && buffer != nullptr) {
-    return buffer->length() >= config_->maxRequestBytes();
+  if (req_config_->allowPartialMessage() && buffer != nullptr) {
+    return buffer->length() >= req_config_->maxRequestBytes();
   }
   return false;
 }
@@ -381,7 +381,7 @@ void Filter::onResponseComplete(Filters::Common::MGW::ResponsePtr&& response) {
   switch (response->status) {
     case CheckStatus::OK: {
       ENVOY_STREAM_LOG(trace, "mgw filter added header(s) to the response:", *res_callbacks_);
-      if (config_->clearRouteCache() &&
+      if (req_config_->clearRouteCache() &&
           (!response->headers_to_add.empty() || !response->headers_to_append.empty())) {
         ENVOY_STREAM_LOG(debug, "mgw is clearing route cache", *res_callbacks_);
         res_callbacks_->clearRouteCache();
@@ -398,9 +398,9 @@ void Filter::onResponseComplete(Filters::Common::MGW::ResponsePtr&& response) {
         }
       }
       if (cluster_) {
-        config_->incCounter(cluster_->statsScope(), config_->mgw_ok_);
+        req_config_->incCounter(cluster_->statsScope(), req_config_->mgw_ok_);
       }
-      stats_.ok_.inc();
+      // stats_.ok_.inc();
       continueEncoding();
       break;
     }
@@ -411,9 +411,9 @@ void Filter::onResponseComplete(Filters::Common::MGW::ResponsePtr&& response) {
     //   stats_.denied_.inc();
 
     //   if (cluster_) {
-    //     config_->incCounter(cluster_->statsScope(), config_->mgw_denied_);
+    //     req_config_->incCounter(cluster_->statsScope(), req_config_->mgw_denied_);
 
-    //     Http::CodeStats::ResponseStatInfo info{config_->scope(),
+    //     Http::CodeStats::ResponseStatInfo info{req_config_->scope(),
     //                                            cluster_->statsScope(),
     //                                            empty_stat_name,
     //                                            enumToInt(response->status_code),
@@ -423,7 +423,7 @@ void Filter::onResponseComplete(Filters::Common::MGW::ResponsePtr&& response) {
     //                                            empty_stat_name,
     //                                            empty_stat_name,
     //                                            false};
-    //     config_->httpContext().codeStats().chargeResponseStat(info);
+    //     req_config_->httpContext().codeStats().chargeResponseStat(info);
     //   }
     //   // ENVOY_STREAM_LOG(trace, "mgw filter added header(s) to the local response:",
     //   res_callbacks);
@@ -469,24 +469,25 @@ void Filter::onResponseComplete(Filters::Common::MGW::ResponsePtr&& response) {
   case CheckStatus::Error: {
     response->headers_to_add.emplace_back(Http::LowerCaseString(std::string("Error")), std::string("Error received from grpc call"));
     if (downstream_cluster_) {
-      config_->incCounter(downstream_cluster_->statsScope(), config_->mgw_error_);
+      req_config_->incCounter(downstream_cluster_->statsScope(), req_config_->mgw_error_);
     }
-    stats_.error_.inc();
-    if (config_->failureModeAllow()) {
+    // stats_.error_.inc();
+    if (req_config_->failureModeAllow()) {
       ENVOY_STREAM_LOG(trace, "mgw filter allowed the request with error", *res_callbacks_);
-      stats_.failure_mode_allowed_.inc();
+      // stats_.failure_mode_allowed_.inc();
       if (downstream_cluster_) {
-        config_->incCounter(downstream_cluster_->statsScope(),
-        config_->mgw_failure_mode_allowed_);
+        req_config_->incCounter(downstream_cluster_->statsScope(),
+                                req_config_->mgw_failure_mode_allowed_);
       }
     } else {
       ENVOY_STREAM_LOG(trace,
                        "mgw filter rejected the request with an error. Response status code: {}",
-                       *res_callbacks_, enumToInt(config_->statusOnError()));
+                       *res_callbacks_, enumToInt(req_config_->statusOnError()));
       // TODO(amalimatharaarachchi)
       // Gracefully handle error response res_callbacks_->streamInfo().setResponseFlag(
       //     StreamInfo::ResponseFlag::UnauthorizedExternalService);
-      // res_callbacks_->sendLocalReply(config_->statusOnError(), EMPTY_STRING, nullptr, absl::nullopt,
+      // res_callbacks_->sendLocalReply(req_config_->statusOnError(), EMPTY_STRING, nullptr,
+      // absl::nullopt,
       //                                RcDetails::get().AuthzError);
     }
     continueEncoding();
@@ -529,7 +530,7 @@ void Filter::initiateResponseInterceptCall(const Http::ResponseHeaderMap& header
   // If metadata_context_namespaces is specified, pass matching metadata to the mgw service
   envoy::config::core::v3::Metadata metadata_context;
   const auto& response_metadata = res_callbacks_->streamInfo().dynamicMetadata().filter_metadata();
-  for (const auto& context_key : config_->metadataContextNamespaces()) {
+  for (const auto& context_key : req_config_->metadataContextNamespaces()) {
     const auto& metadata_it = response_metadata.find(context_key);
     if (metadata_it != response_metadata.end()) {
       (*metadata_context.mutable_filter_metadata())[metadata_it->first] = metadata_it->second;
@@ -538,7 +539,8 @@ void Filter::initiateResponseInterceptCall(const Http::ResponseHeaderMap& header
 
   Filters::Common::MGW::CheckResponseUtils::createHttpCheck(
       res_callbacks_, headers, std::move(context_extensions), std::move(metadata_context),
-      res_intercept_request_, config_->maxRequestBytes(), config_->includePeerCertificate());
+      res_intercept_request_, req_config_->maxRequestBytes(),
+      req_config_->includePeerCertificate());
 
   ENVOY_STREAM_LOG(trace, "mgw filter calling response interceptor server", *res_callbacks_);
   res_state_ = State::Calling;

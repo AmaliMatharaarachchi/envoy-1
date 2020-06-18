@@ -15,8 +15,9 @@ envoy_package()
 envoy_cc_library(
     name = "mgw",
     srcs = ["mgw.cc"],
-    hdrs = ["mgw.h"],
+    hdrs = ["mgw.h", "filter_config.h"],
     deps = [
+        # ":filter_config",
         "//include/envoy/http:codes_interface",
         "//include/envoy/stats:stats_macros",
         "//source/common/buffer:buffer_lib",
@@ -36,6 +37,30 @@ envoy_cc_library(
         "@envoy_api//envoy/service/mgw_res/v3:pkg_cc_proto",
     ],
 )
+
+# envoy_cc_library(
+#     name = "filter_config",
+#     srcs = ["filter_config.cc"],
+#     deps = [
+#         "//include/envoy/http:codes_interface",
+#         "//include/envoy/stats:stats_macros",
+#         "//source/common/buffer:buffer_lib",
+#         "//source/common/common:assert_lib",
+#         "//source/common/common:empty_string",
+#         "//source/common/common:enum_to_int",
+#         "//source/common/common:matchers_lib",
+#         "//source/common/common:minimal_logger_lib",
+#         "//source/common/http:codes_lib",
+#         "//source/common/http:utility_lib",
+#         "//source/common/router:config_lib",
+#         "//source/extensions/filters/common/mgw:mgw_grpc_lib",
+#         "//source/extensions/filters/common/mgw:mgw_res_grpc_lib",
+#         "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
+#         "@envoy_api//envoy/extensions/filters/http/mgw/v3:pkg_cc_proto",
+#         "@envoy_api//envoy/service/auth/v3:pkg_cc_proto",
+#         "@envoy_api//envoy/service/mgw_res/v3:pkg_cc_proto",
+#     ],
+# )
 
 envoy_cc_extension(
     name = "config",
