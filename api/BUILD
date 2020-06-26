@@ -228,6 +228,7 @@ proto_library(
         "//envoy/extensions/wasm/v3:pkg",
         "//envoy/service/accesslog/v3:pkg",
         "//envoy/service/auth/v3:pkg",
+        "//envoy/service/auth_simple/v3:pkg",
         "//envoy/service/cluster/v3:pkg",
         "//envoy/service/discovery/v3:pkg",
         "//envoy/service/endpoint/v3:pkg",

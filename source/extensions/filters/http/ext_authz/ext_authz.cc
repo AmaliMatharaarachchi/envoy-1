@@ -31,7 +31,7 @@ void FilterConfigPerRoute::merge(const FilterConfigPerRoute& other) {
   }
 }
 
-void Filter::initiateCall(const Http::RequestHeaderMap& headers,
+void Filter::initiateCall(const Http::RequestHeaderMap& ,
                           const Router::RouteConstSharedPtr& route) {
   if (filter_return_ == FilterReturn::StopDecoding) {
     return;
@@ -59,11 +59,12 @@ void Filter::initiateCall(const Http::RequestHeaderMap& headers,
     }
   }
 
-  Filters::Common::ExtAuthz::CheckRequestUtils::createHttpCheck(
-      callbacks_, headers, std::move(context_extensions), std::move(metadata_context),
-      check_request_, config_->maxRequestBytes(), config_->includePeerCertificate());
+  // Filters::Common::ExtAuthz::CheckRequestUtils::createSimpleHttpCheck(
+  //     callbacks_, headers, std::move(context_extensions), std::move(metadata_context),
+  //     check_request_, config_->maxRequestBytes(), config_->includePeerCertificate());
+  
 
-  ENVOY_STREAM_LOG(trace, "ext_authz filter calling authorization server", *callbacks_);
+      ENVOY_STREAM_LOG(trace, "ext_authz filter calling authorization server", *callbacks_);
   state_ = State::Calling;
   filter_return_ = FilterReturn::StopDecoding; // Don't let the filter chain continue as we are
                                                // going to invoke check call.
@@ -146,110 +147,8 @@ void Filter::onDestroy() {
   }
 }
 
-void Filter::onComplete(Filters::Common::ExtAuthz::ResponsePtr&& response) {
-  state_ = State::Complete;
-  using Filters::Common::ExtAuthz::CheckStatus;
-  Stats::StatName empty_stat_name;
-
-  switch (response->status) {
-  case CheckStatus::OK: {
-    ENVOY_STREAM_LOG(trace, "ext_authz filter added header(s) to the request:", *callbacks_);
-    if (config_->clearRouteCache() &&
-        (!response->headers_to_add.empty() || !response->headers_to_append.empty())) {
-      ENVOY_STREAM_LOG(debug, "ext_authz is clearing route cache", *callbacks_);
-      callbacks_->clearRouteCache();
-    }
-    for (const auto& header : response->headers_to_add) {
-      ENVOY_STREAM_LOG(trace, "'{}':'{}'", *callbacks_, header.first.get(), header.second);
-      request_headers_->setCopy(header.first, header.second);
-    }
-    for (const auto& header : response->headers_to_append) {
-      const Http::HeaderEntry* header_to_modify = request_headers_->get(header.first);
-      if (header_to_modify) {
-        ENVOY_STREAM_LOG(trace, "'{}':'{}'", *callbacks_, header.first.get(), header.second);
-        request_headers_->appendCopy(header.first, header.second);
-      }
-    }
-    if (cluster_) {
-      config_->incCounter(cluster_->statsScope(), config_->ext_authz_ok_);
-    }
-    stats_.ok_.inc();
-    continueDecoding();
-    break;
-  }
-
-  case CheckStatus::Denied: {
-    ENVOY_STREAM_LOG(trace, "ext_authz filter rejected the request. Response status code: '{}",
-                     *callbacks_, enumToInt(response->status_code));
-    stats_.denied_.inc();
-
-    if (cluster_) {
-      config_->incCounter(cluster_->statsScope(), config_->ext_authz_denied_);
-
-      Http::CodeStats::ResponseStatInfo info{config_->scope(),
-                                             cluster_->statsScope(),
-                                             empty_stat_name,
-                                             enumToInt(response->status_code),
-                                             true,
-                                             empty_stat_name,
-                                             empty_stat_name,
-                                             empty_stat_name,
-                                             empty_stat_name,
-                                             false};
-      config_->httpContext().codeStats().chargeResponseStat(info);
-    }
-
-    callbacks_->sendLocalReply(
-        response->status_code, response->body,
-        [& headers = response->headers_to_add,
-         &callbacks = *callbacks_](Http::HeaderMap& response_headers) -> void {
-          ENVOY_STREAM_LOG(trace,
-                           "ext_authz filter added header(s) to the local response:", callbacks);
-          // First remove all headers requested by the ext_authz filter,
-          // to ensure that they will override existing headers
-          for (const auto& header : headers) {
-            response_headers.remove(header.first);
-          }
-          // Then set all of the requested headers, allowing the
-          // same header to be set multiple times, e.g. `Set-Cookie`
-          for (const auto& header : headers) {
-            ENVOY_STREAM_LOG(trace, " '{}':'{}'", callbacks, header.first.get(), header.second);
-            response_headers.addCopy(header.first, header.second);
-          }
-        },
-        absl::nullopt, RcDetails::get().AuthzDenied);
-    callbacks_->streamInfo().setResponseFlag(StreamInfo::ResponseFlag::UnauthorizedExternalService);
-    break;
-  }
-
-  case CheckStatus::Error: {
-    if (cluster_) {
-      config_->incCounter(cluster_->statsScope(), config_->ext_authz_error_);
-    }
-    stats_.error_.inc();
-    if (config_->failureModeAllow()) {
-      ENVOY_STREAM_LOG(trace, "ext_authz filter allowed the request with error", *callbacks_);
-      stats_.failure_mode_allowed_.inc();
-      if (cluster_) {
-        config_->incCounter(cluster_->statsScope(), config_->ext_authz_failure_mode_allowed_);
-      }
-      continueDecoding();
-    } else {
-      ENVOY_STREAM_LOG(
-          trace, "ext_authz filter rejected the request with an error. Response status code: {}",
-          *callbacks_, enumToInt(config_->statusOnError()));
-      callbacks_->streamInfo().setResponseFlag(
-          StreamInfo::ResponseFlag::UnauthorizedExternalService);
-      callbacks_->sendLocalReply(config_->statusOnError(), EMPTY_STRING, nullptr, absl::nullopt,
-                                 RcDetails::get().AuthzError);
-    }
-    break;
-  }
-
-  default:
-    NOT_REACHED_GCOVR_EXCL_LINE;
-    break;
-  }
+void Filter::onComplete(Filters::Common::ExtAuthz::ResponsePtr&& ) {
+  continueDecoding();
 }
 
 bool Filter::isBufferFull() const {
