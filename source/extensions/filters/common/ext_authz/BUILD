@@ -16,6 +16,7 @@ envoy_cc_library(
         "//include/envoy/stream_info:stream_info_interface",
         "//source/common/tracing:http_tracer_lib",
         "@envoy_api//envoy/service/auth/v3:pkg_cc_proto",
+        "@envoy_api//envoy/service/auth_simple/v3:pkg_cc_proto",
     ],
 )
 
@@ -80,5 +81,34 @@ envoy_cc_library(
         "//source/common/grpc:async_client_lib",
         "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
         "@envoy_api//envoy/service/auth/v3:pkg_cc_proto",
+    ],
+)
+
+envoy_cc_library(
+    name = "ext_authz_simple_grpc_lib",
+    srcs = ["ext_authz_simple_grpc_impl.cc"],
+    hdrs = ["ext_authz_simple_grpc_impl.h"],
+    deps = [
+        ":check_request_utils_lib",
+        ":ext_authz_interface",
+        "//include/envoy/grpc:async_client_interface",
+        "//include/envoy/grpc:async_client_manager_interface",
+        "//include/envoy/http:filter_interface",
+        "//include/envoy/http:header_map_interface",
+        "//include/envoy/http:protocol_interface",
+        "//include/envoy/network:address_interface",
+        "//include/envoy/network:connection_interface",
+        "//include/envoy/network:filter_interface",
+        "//include/envoy/upstream:cluster_manager_interface",
+        "//source/common/common:assert_lib",
+        "//source/common/grpc:async_client_lib",
+        "//source/common/grpc:typed_async_client_lib",
+        "//source/common/http:headers_lib",
+        "//source/common/http:utility_lib",
+        "//source/common/network:utility_lib",
+        "//source/common/protobuf",
+        "//source/common/tracing:http_tracer_lib",
+        "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
+        "@envoy_api//envoy/service/auth_simple/v3:pkg_cc_proto",
     ],
 )

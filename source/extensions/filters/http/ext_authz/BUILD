@@ -28,11 +28,11 @@ envoy_cc_library(
         "//source/common/http:codes_lib",
         "//source/common/http:utility_lib",
         "//source/common/router:config_lib",
-        "//source/extensions/filters/common/ext_authz:ext_authz_grpc_lib",
+        "//source/extensions/filters/common/ext_authz:ext_authz_simple_grpc_lib",
         "//source/extensions/filters/common/ext_authz:ext_authz_http_lib",
         "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
         "@envoy_api//envoy/extensions/filters/http/ext_authz/v3:pkg_cc_proto",
-        "@envoy_api//envoy/service/auth/v3:pkg_cc_proto",
+        "@envoy_api//envoy/service/auth_simple/v3:pkg_cc_proto",
     ],
 )
 

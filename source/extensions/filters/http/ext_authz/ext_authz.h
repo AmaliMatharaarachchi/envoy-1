@@ -9,7 +9,7 @@
 #include "envoy/http/filter.h"
 #include "envoy/local_info/local_info.h"
 #include "envoy/runtime/runtime.h"
-#include "envoy/service/auth/v3/external_auth.pb.h"
+#include "envoy/service/auth_simple/v3/auth_simple.pb.h"
 #include "envoy/stats/scope.h"
 #include "envoy/stats/stats_macros.h"
 #include "envoy/upstream/cluster_manager.h"
@@ -22,7 +22,7 @@
 #include "common/runtime/runtime_protos.h"
 
 #include "extensions/filters/common/ext_authz/ext_authz.h"
-#include "extensions/filters/common/ext_authz/ext_authz_grpc_impl.h"
+#include "extensions/filters/common/ext_authz/ext_authz_simple_grpc_impl.h"
 #include "extensions/filters/common/ext_authz/ext_authz_http_impl.h"
 
 namespace Envoy {
@@ -202,7 +202,7 @@ class Filter : public Logger::Loggable<Logger::Id::filter>,
                public Http::StreamDecoderFilter,
                public Filters::Common::ExtAuthz::RequestCallbacks {
 public:
-  Filter(const FilterConfigSharedPtr& config, Filters::Common::ExtAuthz::ClientPtr&& client)
+  Filter(const FilterConfigSharedPtr& config, Filters::Common::ExtAuthz::SimpleClientPtr&& client)
       : config_(config), client_(std::move(client)), stats_(config->stats()) {}
 
   // Http::StreamFilterBase
@@ -238,7 +238,7 @@ private:
 
   Http::HeaderMapPtr getHeaderMap(const Filters::Common::ExtAuthz::ResponsePtr& response);
   FilterConfigSharedPtr config_;
-  Filters::Common::ExtAuthz::ClientPtr client_;
+  Filters::Common::ExtAuthz::SimpleClientPtr client_;
   Http::StreamDecoderFilterCallbacks* callbacks_{};
   Http::RequestHeaderMap* request_headers_;
   State state_{State::NotStarted};
@@ -251,7 +251,7 @@ private:
   bool initiating_call_{};
   bool buffer_data_{};
   bool skip_check_{false};
-  envoy::service::auth::v3::CheckRequest check_request_{};
+  envoy::service::auth_simple::v3::CheckRequest check_request_{};
 };
 
 } // namespace ExtAuthz
