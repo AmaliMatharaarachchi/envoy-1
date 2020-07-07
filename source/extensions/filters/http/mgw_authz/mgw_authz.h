@@ -44,22 +44,24 @@ using FilterConfigSharedPtr = std::shared_ptr<FilterConfig>;
  */
 class Filter : public Logger::Loggable<Logger::Id::filter>,
                public Http::StreamDecoderFilter{
-public:
-  Filter(const FilterConfigSharedPtr& config)
-      : config_(config) {}
+  public:
+    Filter(const FilterConfigSharedPtr& config)
+        : config_(config) {}
 
-  // Http::StreamFilterBase
-  void onDestroy() override;
+    // Http::StreamFilterBase
+    void onDestroy() override;
 
-  // Http::StreamDecoderFilter
-  Http::FilterHeadersStatus decodeHeaders(Http::RequestHeaderMap& headers,
-                                          bool end_stream) override;
-  Http::FilterDataStatus decodeData(Buffer::Instance& data, bool end_stream) override;
-  Http::FilterTrailersStatus decodeTrailers(Http::RequestTrailerMap& trailers) override;
-  void setDecoderFilterCallbacks(Http::StreamDecoderFilterCallbacks& callbacks) override;
+    // Http::StreamDecoderFilter
+    Http::FilterHeadersStatus decodeHeaders(Http::RequestHeaderMap& headers,
+                                            bool end_stream) override;
+    Http::FilterDataStatus decodeData(Buffer::Instance& data, bool end_stream) override;
+    Http::FilterTrailersStatus decodeTrailers(Http::RequestTrailerMap& trailers) override;
+    void setDecoderFilterCallbacks(Http::StreamDecoderFilterCallbacks& callbacks) override;
 
-  Http::StreamDecoderFilterCallbacks* callbacks_{};
-  FilterConfigSharedPtr config_;
+    Http::StreamDecoderFilterCallbacks* callbacks_{};
+    FilterConfigSharedPtr config_;
+  private:
+    bool validateScopes();
 };
 
 } // namespace MgwAuthz
