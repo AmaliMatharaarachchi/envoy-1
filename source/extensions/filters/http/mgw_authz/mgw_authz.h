@@ -25,8 +25,18 @@ namespace Extensions {
 namespace HttpFilters {
 namespace MgwAuthz {
 
+class RequestCallbacks {
+public:
+  virtual ~RequestCallbacks() = default;
+
+  /**
+   * Called when authorization is complete. The resulting ResponsePtr is supplied.
+   */
+  virtual void onComplete(bool authorized) PURE;
+};
+
 /**
- * Configuration for the External Authorization (ext_authz) filter.
+ * Configuration for the Microgateway Authorization (mgw_authz) filter.
  */
 class FilterConfig {
 public:
@@ -43,25 +53,30 @@ using FilterConfigSharedPtr = std::shared_ptr<FilterConfig>;
  * ext_authz service before allowing further filter iteration.
  */
 class Filter : public Logger::Loggable<Logger::Id::filter>,
-               public Http::StreamDecoderFilter{
-  public:
-    Filter(const FilterConfigSharedPtr& config)
-        : config_(config) {}
+               public Http::StreamDecoderFilter,
+               public RequestCallbacks {
+public:
+  Filter(const FilterConfigSharedPtr& config) : config_(config) {}
 
-    // Http::StreamFilterBase
-    void onDestroy() override;
+  // Http::StreamFilterBase
+  void onDestroy() override;
 
-    // Http::StreamDecoderFilter
-    Http::FilterHeadersStatus decodeHeaders(Http::RequestHeaderMap& headers,
-                                            bool end_stream) override;
-    Http::FilterDataStatus decodeData(Buffer::Instance& data, bool end_stream) override;
-    Http::FilterTrailersStatus decodeTrailers(Http::RequestTrailerMap& trailers) override;
-    void setDecoderFilterCallbacks(Http::StreamDecoderFilterCallbacks& callbacks) override;
+  // Http::StreamDecoderFilter
+  Http::FilterHeadersStatus decodeHeaders(Http::RequestHeaderMap& headers,
+                                          bool end_stream) override;
+  Http::FilterDataStatus decodeData(Buffer::Instance& data, bool end_stream) override;
+  Http::FilterTrailersStatus decodeTrailers(Http::RequestTrailerMap& trailers) override;
+  void setDecoderFilterCallbacks(Http::StreamDecoderFilterCallbacks& callbacks) override;
+  // RequestCallbacks
+  virtual void onComplete(bool authorized) override;
 
-    Http::StreamDecoderFilterCallbacks* callbacks_{};
-    FilterConfigSharedPtr config_;
-  private:
-    bool validateScopes();
+  Http::StreamDecoderFilterCallbacks* callbacks_{};
+  FilterConfigSharedPtr config_;
+
+private:
+  enum State { Init, Calling, Continue };
+  State state_ = Init;
+  bool validateScopes();
 };
 
 } // namespace MgwAuthz
