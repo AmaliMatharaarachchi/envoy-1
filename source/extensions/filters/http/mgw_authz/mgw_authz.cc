@@ -50,8 +50,8 @@ void Filter::setDecoderFilterCallbacks(Http::StreamDecoderFilterCallbacks& callb
   callbacks_ = &callbacks;
 }
 
-void Filter::onDestroy() {
-}
+void Filter::onDestroy() {}
+
 void Filter::onComplete(bool authorized) {
   if (!authorized) {
     // todo move to common const
@@ -70,27 +70,16 @@ void Filter::onComplete(bool authorized) {
 
   bool Filter::validateScopes() {
     ENVOY_LOG(debug, "validate scopes");
-    std::cout << "validate scopes" << std::endl;
-    std::string payloadKey = "my-payload";
+    std::string payloadKey = "jwt-payload";
     std::string jsonJWTPayload;
-    const auto& scopes = {"scope2"};
+    const auto& scopes = {"scope1"};
     std::string scopeClaim = "scope";
-
-    const Protobuf::Map<std::string, Protobuf::Struct> filter_metadata =
-        callbacks_->streamInfo().dynamicMetadata().filter_metadata();
-    const auto filter_it = filter_metadata.find(HttpFilterNames::get().JwtAuthn);
-    if (filter_it != filter_metadata.end()) { // if jwtauthn filter
-                                              // meta data exists.
-      const auto jwt_filter_it =
-          filter_metadata.at(HttpFilterNames::get().JwtAuthn).fields().find(payloadKey);
-      if (jwt_filter_it != filter_metadata.at(HttpFilterNames::get().JwtAuthn).fields().end()) {
-        const auto status =
-            Protobuf::util::MessageToJsonString(filter_metadata.at(HttpFilterNames::get().JwtAuthn)
-                                                    .fields()
-                                                    .at(payloadKey)
-                                                    .struct_value(),
-                                                &jsonJWTPayload);
-        if (status == Protobuf::util::Status::OK) {
+    try {
+      const auto* jwtPayload = &Config::Metadata::metadataValue(
+          &callbacks_->streamInfo().dynamicMetadata(), HttpFilterNames::get().JwtAuthn, payloadKey);
+      if (jwtPayload != nullptr && jwtPayload->kind_case() != ProtobufWkt::Value::KIND_NOT_SET) {
+        if (Protobuf::util::MessageToJsonString(jwtPayload->struct_value(), &jsonJWTPayload) ==
+            Protobuf::util::Status::OK) {
           Json::ObjectSharedPtr loader = Json::Factory::loadFromString(jsonJWTPayload);
           if (loader->hasObject(scopeClaim)) {
             std::string scopesFromPayload = loader->getString(scopeClaim);
@@ -103,13 +92,18 @@ void Filter::onComplete(bool authorized) {
               }
             }
             ENVOY_LOG(debug, "scope does not exists in jwt payload");
-
           } else {
-            ENVOY_LOG(debug, "scope claim not exists in jwt payload");
+            ENVOY_LOG(debug, "scope claim: " + scopeClaim + " not found in jwt payload");
           }
+        } else {
+          ENVOY_LOG(debug, "error while mapping payload metadata to json");
         }
+      } else {
+        ENVOY_LOG(debug, "payloadkey: " + payloadKey + " not exists in jwt filter metadata");
       }
-    }
+    } catch (EnvoyException e) {
+      ENVOY_LOG(error, "error while scope validating. ", e.what());
+    } 
     return false;
   }
 
