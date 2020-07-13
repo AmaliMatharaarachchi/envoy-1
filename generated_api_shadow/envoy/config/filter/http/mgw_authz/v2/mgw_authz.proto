@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package envoy.config.filter.http.mgw_authz.v2;
 
+import "envoy/api/v2/route/route_components.proto";
+
 import "envoy/annotations/deprecation.proto";
 import "udpa/annotations/migrate.proto";
 import "udpa/annotations/status.proto";
@@ -15,4 +17,21 @@ option (udpa.annotations.file_migrate).move_to_package =
 option (udpa.annotations.file_status).package_version_status = FROZEN;
 
 message MgwAuthz {
+  map<string, ScopesClaimsMap> jwt_config = 1;
+
+  repeated RequirementRule rules = 2;
+
+  string scopes = 3;
+}
+
+message ScopesClaimsMap {
+  string issuer = 1 [(validate.rules).string = {min_bytes: 1}];
+
+  string claim = 2 [(validate.rules).string = {min_bytes: 1}];
+}
+
+message RequirementRule {
+  api.v2.route.RouteMatch match = 1 [(validate.rules).message = {required: true}];
+
+  string scopes = 2;
 }

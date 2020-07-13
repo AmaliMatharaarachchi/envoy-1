@@ -8,6 +8,7 @@ api_proto_package(
     deps = [
         "//envoy/annotations:pkg",
         "//envoy/config/filter/http/mgw_authz/v2:pkg",
+        "//envoy/config/route/v3:pkg",
         "@com_github_cncf_udpa//udpa/annotations:pkg",
     ],
 )

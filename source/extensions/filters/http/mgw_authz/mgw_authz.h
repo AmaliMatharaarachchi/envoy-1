@@ -19,6 +19,7 @@
 #include "common/http/codes.h"
 #include "common/http/header_map_impl.h"
 #include "common/runtime/runtime_protos.h"
+#include "extensions/filters/http/mgw_authz/matcher.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -35,15 +36,40 @@ public:
   virtual void onComplete(bool authorized) PURE;
 };
 
+class jwtProvider {
+  public:
+    jwtProvider(){} 
+    private:
+
+};
+
 /**
  * Configuration for the Microgateway Authorization (mgw_authz) filter.
  */
 class FilterConfig {
 public:
-  FilterConfig(const envoy::extensions::filters::http::mgw_authz::v3::MgwAuthz& ,
-               const LocalInfo::LocalInfo& , Stats::Scope& ,
-               Runtime::Loader& , Http::Context& ,
-               const std::string& ) {}
+  FilterConfig(const envoy::extensions::filters::http::mgw_authz::v3::MgwAuthz& proto_config_,
+               const LocalInfo::LocalInfo&, Stats::Scope&, Runtime::Loader&, Http::Context&,
+               const std::string&)
+       {
+    for (const auto& rule : proto_config_.rules()) {
+      rule_pairs_.emplace_back(Matcher::create(rule),
+                               rule.scopes());
+    }}
+    // for (const auto& jwtIssuer : proto_config_.jwt_config()) {
+
+  //   // }
+  private:
+    struct MatcherScopePair {
+      MatcherScopePair(MatcherConstPtr matcher, std::string scope)
+          : matcher_(std::move(matcher)), scope_(scope) {}
+      MatcherConstPtr matcher_;
+      std::string scope_;
+    };
+  // The list of rules and scopes.
+    std::vector<MatcherScopePair> rule_pairs_;
+    std::vector<std::string, jwtProvider> providers_;
+    
 };
 
 using FilterConfigSharedPtr = std::shared_ptr<FilterConfig>;

@@ -19,6 +19,9 @@ Http::FilterHeadersStatus Filter::decodeHeaders(Http::RequestHeaderMap& , bool )
   bool doValidateScopes = true;
   if (doValidateScopes) {
     bool authorized = validateScopes();
+    if (authorized) {
+      state_ = Continue;
+    }
     onComplete(authorized);
   } else {
     state_ = Continue;
@@ -50,7 +53,8 @@ void Filter::setDecoderFilterCallbacks(Http::StreamDecoderFilterCallbacks& callb
   callbacks_ = &callbacks;
 }
 
-void Filter::onDestroy() {}
+void Filter::onDestroy() {
+}
 
 void Filter::onComplete(bool authorized) {
   if (!authorized) {
@@ -75,8 +79,11 @@ void Filter::onComplete(bool authorized) {
     const auto& scopes = {"scope1"};
     std::string scopeClaim = "scope";
     try {
-      const auto* jwtPayload = &Config::Metadata::metadataValue(
-          &callbacks_->streamInfo().dynamicMetadata(), HttpFilterNames::get().JwtAuthn, payloadKey);
+      std::cout << callbacks_->streamInfo().dynamicMetadata().DebugString()<< std::endl;
+      // std::cout << callbacks_->streamInfo().upstreamClusterInfo() << std::endl;
+      const auto* jwtPayload =
+          &Config::Metadata::metadataValue(&callbacks_->streamInfo().dynamicMetadata(),
+                                           HttpFilterNames::get().JwtAuthn, payloadKey);
       if (jwtPayload != nullptr && jwtPayload->kind_case() != ProtobufWkt::Value::KIND_NOT_SET) {
         if (Protobuf::util::MessageToJsonString(jwtPayload->struct_value(), &jsonJWTPayload) ==
             Protobuf::util::Status::OK) {

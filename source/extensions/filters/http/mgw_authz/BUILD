@@ -17,6 +17,7 @@ envoy_cc_library(
     srcs = ["mgw_authz.cc"],
     hdrs = ["mgw_authz.h"],
     deps = [
+        ":matchers_lib",
         "//include/envoy/http:codes_interface",
         "//include/envoy/stats:stats_macros",
         "//include/envoy/http:context_interface",
@@ -48,6 +49,19 @@ envoy_cc_extension(
         "//source/extensions/filters/http:well_known_names",
         "//source/extensions/filters/http/common:factory_base_lib",
         "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
+        "@envoy_api//envoy/extensions/filters/http/mgw_authz/v3:pkg_cc_proto",
+    ],
+)
+
+envoy_cc_library(
+    name = "matchers_lib",
+    srcs = ["matcher.cc"],
+    hdrs = ["matcher.h"],
+    deps = [
+        "//source/common/common:matchers_lib",
+        "//source/common/http:header_utility_lib",
+        "//source/common/router:config_lib",
+        "@envoy_api//envoy/config/route/v3:pkg_cc_proto",
         "@envoy_api//envoy/extensions/filters/http/mgw_authz/v3:pkg_cc_proto",
     ],
 )
