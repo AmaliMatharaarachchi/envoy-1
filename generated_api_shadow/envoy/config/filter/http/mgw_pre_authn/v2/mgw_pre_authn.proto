@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package envoy.config.filter.http.mgw_pre_authn.v2;
+
+import "envoy/api/v2/route/route_components.proto";
+
+import "envoy/annotations/deprecation.proto";
+import "udpa/annotations/migrate.proto";
+import "udpa/annotations/status.proto";
+import "validate/validate.proto";
+
+option java_package = "io.envoyproxy.envoy.config.filter.http.mgw_pre_authn.v2";
+option java_outer_classname = "MgwPreAuthnProto";
+option java_multiple_files = true;
+option (udpa.annotations.file_migrate).move_to_package =
+    "envoy.extensions.filters.http.mgw_pre_authn.v3";
+option (udpa.annotations.file_status).package_version_status = FROZEN;
+
+message MgwPreAuthn {
+  map<string, JwtIssuer> jwt_issuers = 1;
+
+  repeated RequirementRule rules = 2;
+
+  ApiConfig api_config = 3 [(validate.rules).message = {required: true}];
+}
+
+message JwtIssuer {
+  string issuer = 1 [(validate.rules).string = {min_bytes: 1}];
+
+  string claim = 2 [(validate.rules).string = {min_bytes: 1}];
+}
+
+message RequirementRule {
+  api.v2.route.RouteMatch match = 1 [(validate.rules).message = {required: true}];
+
+  ResourceConfig resource_config = 2 [(validate.rules).message = {required: true}];
+}
+
+message ResourceConfig {
+  JwtSecurity jwt_security = 1;
+}
+
+message ApiConfig {
+  JwtSecurity jwt_security = 1;
+}
+
+message JwtSecurity {
+  string scopes = 2;
+}

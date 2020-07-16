@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-#include "envoy/extensions/filters/http/mgw_authz/v3/mgw_authz.pb.h"
+#include "envoy/extensions/filters/http/mgw_pre_authn/v3/mgw_pre_authn.pb.h"
 #include "envoy/http/filter.h"
 #include "envoy/http/context.h"
 #include "envoy/local_info/local_info.h"
@@ -19,63 +19,55 @@
 #include "common/http/codes.h"
 #include "common/http/header_map_impl.h"
 #include "common/runtime/runtime_protos.h"
-#include "extensions/filters/http/mgw_authz/matcher.h"
+#include "extensions/filters/http/mgw_pre_authn/matcher.h"
 
 namespace Envoy {
 namespace Extensions {
 namespace HttpFilters {
-namespace MgwAuthz {
-
-class RequestCallbacks {
-public:
-  virtual ~RequestCallbacks() = default;
-
-  /**
-   * Called when authorization is complete. The resulting ResponsePtr is supplied.
-   */
-  virtual void onComplete(bool authorized) PURE;
-};
+namespace MgwPreAuthn {
 
 /**
- * Configuration for the Microgateway Authorization (mgw_authz) filter.
+ * Configuration for the Microgateway (mgw_pre_authn) filter.
  */
 class FilterConfig {
 public:
-  FilterConfig(const envoy::extensions::filters::http::mgw_authz::v3::MgwAuthz& proto_config,
-               const LocalInfo::LocalInfo&, Stats::Scope&, Runtime::Loader&, Http::Context&,
-               const std::string&)
-      : proto_config_(proto_config) {
+  FilterConfig(
+      const envoy::extensions::filters::http::mgw_pre_authn::v3::MgwPreAuthn& proto_config_,
+      const LocalInfo::LocalInfo&, Stats::Scope&, Runtime::Loader&, Http::Context&,
+      const std::string&)
+      : jwt_issuers_(std::move(proto_config_.jwt_issuers())), api_config_(std::move(proto_config_.api_config())) {
     for (const auto& rule : proto_config_.rules()) {
       rule_pairs_.emplace_back(Matcher::create(rule),
-                               rule.scopes());
+                               rule.resource_config());
     }
   }
-
-  std::string findScopes(const Http::RequestHeaderMap& headers) {
-    if
-  }
+  bool metadata_added;
 
 private:
-  struct MatcherScopePair {
-    MatcherScopePair(MatcherConstPtr matcher, std::string scope)
-        : matcher_(std::move(matcher)), scope_(scope) {}
+  struct MatcherConfigPair {
+    MatcherConfigPair(
+        MatcherConstPtr matcher,
+        envoy::extensions::filters::http::mgw_pre_authn::v3::ResourceConfig resource_config)
+        : matcher_(std::move(matcher)), resource_config_(resource_config) {}
     MatcherConstPtr matcher_;
-    std::string scope_;
-    };
+    envoy::extensions::filters::http::mgw_pre_authn::v3::ResourceConfig resource_config_;
+  };
   // The list of rules and scopes.
-    std::vector<MatcherScopePair> rule_pairs_;
-    envoy::extensions::filters::http::mgw_authz::v3::MgwAuthz proto_config_;
+  std::vector<MatcherConfigPair> rule_pairs_;
+  Protobuf::Map<std::string, envoy::extensions::filters::http::mgw_pre_authn::v3::JwtIssuer>
+      jwt_issuers_;
+  envoy::extensions::filters::http::mgw_pre_authn::v3::ApiConfig api_config_;
+  
 };
 
 using FilterConfigSharedPtr = std::shared_ptr<FilterConfig>;
 
 /**
- * HTTP ext_authz filter. Depending on the route configuration, this filter calls the global
- * ext_authz service before allowing further filter iteration.
+ * HTTP filter. Depending on the route configuration, this filter calls the global
+ * service before allowing further filter iteration.
  */
 class Filter : public Logger::Loggable<Logger::Id::filter>,
-               public Http::StreamDecoderFilter,
-               public RequestCallbacks {
+               public Http::StreamDecoderFilter {
 public:
   Filter(const FilterConfigSharedPtr& config) : config_(config) {}
 
@@ -88,19 +80,14 @@ public:
   Http::FilterDataStatus decodeData(Buffer::Instance& data, bool end_stream) override;
   Http::FilterTrailersStatus decodeTrailers(Http::RequestTrailerMap& trailers) override;
   void setDecoderFilterCallbacks(Http::StreamDecoderFilterCallbacks& callbacks) override;
-  // RequestCallbacks
-  virtual void onComplete(bool authorized) override;
 
   Http::StreamDecoderFilterCallbacks* callbacks_{};
   FilterConfigSharedPtr config_;
 
 private:
-  enum State { Init, Calling, Continue };
-  State state_ = Init;
-  bool validateScopes();
 };
 
-} // namespace MgwAuthz
+} // namespace MgwPreAuthn
 } // namespace HttpFilters
 } // namespace Extensions
 } // namespace Envoy
