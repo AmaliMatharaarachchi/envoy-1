@@ -90,11 +90,19 @@ void Filter::onComplete(const Status& status) {
     stats_.denied_.inc();
     state_ = Responded;
     // verification failed
-    Http::Code code =
-        status == Status::JwtAudienceNotAllowed ? Http::Code::Forbidden : Http::Code::Unauthorized;
+    Http::Code code;
+    absl::string_view description;
     // return failure reason as message body
-    decoder_callbacks_->sendLocalReply(code, ::google::jwt_verify::getStatusString(status), nullptr,
-                                       absl::nullopt, RcDetails::get().JwtAuthnAccessDenied);
+    if (status == Status::JwtAudienceNotAllowed) {
+      code = Http::Code::Forbidden;
+      description =
+          "fault: { code: 900901, message: Invalid Credentials, description: Make sure you have given the correct access token }";
+    } else {
+      code = Http::Code::Unauthorized;
+      description = "fault: { code: 900908, message: Resource forbidden }";
+    }
+    decoder_callbacks_->sendLocalReply(code, description, nullptr, absl::nullopt,
+                                       RcDetails::get().JwtAuthnAccessDenied);
     return;
   }
   stats_.allowed_.inc();
