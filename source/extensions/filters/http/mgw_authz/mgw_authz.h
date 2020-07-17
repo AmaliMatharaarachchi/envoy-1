@@ -33,7 +33,7 @@ public:
   /**
    * Called when authorization is complete. The resulting ResponsePtr is supplied.
    */
-  virtual void onComplete(bool authorized) PURE;
+  virtual void onComplete() PURE;
 };
 
 /**
@@ -44,27 +44,49 @@ public:
   FilterConfig(const envoy::extensions::filters::http::mgw_authz::v3::MgwAuthz& proto_config,
                const LocalInfo::LocalInfo&, Stats::Scope&, Runtime::Loader&, Http::Context&,
                const std::string&)
-      : proto_config_(proto_config) {
+      : proto_config_(std::move(proto_config)) {
     for (const auto& rule : proto_config_.rules()) {
       rule_pairs_.emplace_back(Matcher::create(rule),
-                               rule.scopes());
+                               rule.scopes(), rule.disable());                        
     }
+    jwt_config_ = proto_config_.jwt_config();
   }
 
   std::string findScopes(const Http::RequestHeaderMap& headers) {
-    if
+    for (const auto& pair : rule_pairs_) {
+      if (pair.matcher_->matches(headers)) {
+        if (pair.disable_) {
+          return "";
+        }
+        if (pair.scope_ != "") {
+          return pair.scope_;
+        }
+      }
+    }
+    return proto_config_.scopes();
+  }
+
+  std::string getScopeClaim(std::string issuer) {
+    for (auto& pair : jwt_config_) {
+      if (pair.second.issuer() == issuer) {
+        return pair.second.claim();
+      }
+    }
+    return "scope";
   }
 
 private:
   struct MatcherScopePair {
-    MatcherScopePair(MatcherConstPtr matcher, std::string scope)
-        : matcher_(std::move(matcher)), scope_(scope) {}
+    MatcherScopePair(MatcherConstPtr matcher, std::string scope, bool disable)
+        : matcher_(std::move(matcher)), scope_(scope), disable_(disable) {}
     MatcherConstPtr matcher_;
     std::string scope_;
+    bool disable_;
     };
   // The list of rules and scopes.
     std::vector<MatcherScopePair> rule_pairs_;
     envoy::extensions::filters::http::mgw_authz::v3::MgwAuthz proto_config_;
+    Protobuf::Map<std::string, envoy::extensions::filters::http::mgw_authz::v3::ScopesClaimsMap> jwt_config_;
 };
 
 using FilterConfigSharedPtr = std::shared_ptr<FilterConfig>;
@@ -89,7 +111,8 @@ public:
   Http::FilterTrailersStatus decodeTrailers(Http::RequestTrailerMap& trailers) override;
   void setDecoderFilterCallbacks(Http::StreamDecoderFilterCallbacks& callbacks) override;
   // RequestCallbacks
-  virtual void onComplete(bool authorized) override;
+  virtual void onComplete() override;
+  void sendError();
 
   Http::StreamDecoderFilterCallbacks* callbacks_{};
   FilterConfigSharedPtr config_;
@@ -97,7 +120,7 @@ public:
 private:
   enum State { Init, Calling, Continue };
   State state_ = Init;
-  bool validateScopes();
+  bool validateScopes(std::string scopes);
 };
 
 } // namespace MgwAuthz

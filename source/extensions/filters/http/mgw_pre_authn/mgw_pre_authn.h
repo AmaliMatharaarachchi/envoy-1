@@ -41,7 +41,6 @@ public:
                                rule.resource_config());
     }
   }
-  bool metadata_added;
 
 private:
   struct MatcherConfigPair {

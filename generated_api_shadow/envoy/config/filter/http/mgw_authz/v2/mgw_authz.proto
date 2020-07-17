@@ -34,4 +34,6 @@ message RequirementRule {
   api.v2.route.RouteMatch match = 1 [(validate.rules).message = {required: true}];
 
   string scopes = 2;
+
+  bool disable = 3;
 }
