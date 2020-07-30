@@ -20,8 +20,6 @@ message MgwAuthz {
   map<string, ScopesClaimsMap> jwt_config = 1;
 
   repeated RequirementRule rules = 2;
-
-  string scopes = 3;
 }
 
 message ScopesClaimsMap {
@@ -33,7 +31,5 @@ message ScopesClaimsMap {
 message RequirementRule {
   api.v2.route.RouteMatch match = 1 [(validate.rules).message = {required: true}];
 
-  string scopes = 2;
-
-  bool disable = 3;
+  string scopes = 2 [(validate.rules).string = {min_bytes: 1}];
 }

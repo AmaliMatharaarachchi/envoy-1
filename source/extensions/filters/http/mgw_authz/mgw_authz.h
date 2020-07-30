@@ -47,7 +47,7 @@ public:
       : proto_config_(std::move(proto_config)) {
     for (const auto& rule : proto_config_.rules()) {
       rule_pairs_.emplace_back(Matcher::create(rule),
-                               rule.scopes(), rule.disable());                        
+                               rule.scopes());                        
     }
     jwt_config_ = proto_config_.jwt_config();
   }
@@ -55,15 +55,10 @@ public:
   std::string findScopes(const Http::RequestHeaderMap& headers) {
     for (const auto& pair : rule_pairs_) {
       if (pair.matcher_->matches(headers)) {
-        if (pair.disable_) {
-          return "";
-        }
-        if (pair.scope_ != "") {
           return pair.scope_;
-        }
       }
     }
-    return proto_config_.scopes();
+    return "";
   }
 
   std::string getScopeClaim(std::string issuer) {
@@ -77,11 +72,10 @@ public:
 
 private:
   struct MatcherScopePair {
-    MatcherScopePair(MatcherConstPtr matcher, std::string scope, bool disable)
-        : matcher_(std::move(matcher)), scope_(scope), disable_(disable) {}
+    MatcherScopePair(MatcherConstPtr matcher, std::string scope)
+        : matcher_(std::move(matcher)), scope_(scope) {}
     MatcherConstPtr matcher_;
     std::string scope_;
-    bool disable_;
     };
   // The list of rules and scopes.
     std::vector<MatcherScopePair> rule_pairs_;
