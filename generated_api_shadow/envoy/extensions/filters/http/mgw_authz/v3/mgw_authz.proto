@@ -31,6 +31,9 @@ message ScopesClaimsMap {
 }
 
 message RequirementRule {
+  option (udpa.annotations.versioning).previous_message_type =
+      "envoy.config.filter.http.mgw_authz.v2.RequirementRule";
+
   config.route.v3.RouteMatch match = 1 [(validate.rules).message = {required: true}];
 
   string scopes = 2 [(validate.rules).string = {min_bytes: 1}];
