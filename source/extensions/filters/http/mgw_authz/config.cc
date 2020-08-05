@@ -19,17 +19,15 @@ namespace MgwAuthz {
 
 Http::FilterFactoryCb MgwAuthzFilterConfig::createFilterFactoryFromProtoTyped(
     const envoy::extensions::filters::http::mgw_authz::v3::MgwAuthz& proto_config,
-    const std::string& stats_prefix, Server::Configuration::FactoryContext& context) {
+    const std::string& , Server::Configuration::FactoryContext& ) {
   const auto filter_config =
-      std::make_shared<FilterConfig>(proto_config, context.localInfo(), context.scope(),
-                                     context.runtime(), context.httpContext(), stats_prefix);
+      std::make_shared<FilterConfig>(proto_config);
   Http::FilterFactoryCb callback;
   callback = [filter_config](
                   Http::FilterChainFactoryCallbacks& callbacks) {
     callbacks.addStreamDecoderFilter(Http::StreamDecoderFilterSharedPtr{
         std::make_shared<Filter>(filter_config)});
   };
-
   return callback;
 };
 

@@ -41,9 +41,7 @@ public:
  */
 class FilterConfig {
 public:
-  FilterConfig(const envoy::extensions::filters::http::mgw_authz::v3::MgwAuthz& proto_config,
-               const LocalInfo::LocalInfo&, Stats::Scope&, Runtime::Loader&, Http::Context&,
-               const std::string&)
+  FilterConfig(const envoy::extensions::filters::http::mgw_authz::v3::MgwAuthz& proto_config)
       : proto_config_(std::move(proto_config)) {
     for (const auto& rule : proto_config_.rules()) {
       rule_pairs_.emplace_back(Matcher::create(rule),

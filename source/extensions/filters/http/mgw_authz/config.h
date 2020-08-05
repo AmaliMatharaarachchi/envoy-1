@@ -23,7 +23,7 @@ public:
 private:
   Http::FilterFactoryCb createFilterFactoryFromProtoTyped(
       const envoy::extensions::filters::http::mgw_authz::v3::MgwAuthz& proto_config,
-      const std::string& stats_prefix, Server::Configuration::FactoryContext& context) override;
+      const std::string& , Server::Configuration::FactoryContext& ) override;
 };
 
 } // namespace MgwAuthz
