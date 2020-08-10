@@ -54,8 +54,6 @@ public:
   const std::string ExtAuthorization = "envoy.filters.http.ext_authz";
   // Microgateway Authorization filter
   const std::string MgwAuthorization = "envoy.filters.http.mgw_authz";
-  // Microgateway pre authentication filter
-  const std::string MgwPreAuthn = "envoy.filters.http.mgw_pre_authn";
   // RBAC HTTP Authorization filter
   const std::string Rbac = "envoy.filters.http.rbac";
   // JWT authentication filter
