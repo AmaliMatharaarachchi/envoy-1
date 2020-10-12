@@ -374,11 +374,12 @@ bool Filter::isResBufferFull() const {
 }
 
 void Filter::onResponseComplete(Filters::Common::MGW::ResponsePtr&& response) {
+  std::cout << "response 377" << std::endl;
   res_state_ = State::Complete;
   using Filters::Common::MGW::CheckStatus;
   // Stats::StatName empty_stat_name;
-  // std::cout << "response" << response << std::endl;
   switch (response->status) {
+    std::cout << "response 382" << std::endl;
     case CheckStatus::OK: {
       ENVOY_STREAM_LOG(trace, "mgw filter added header(s) to the response:", *res_callbacks_);
       if (req_config_->clearRouteCache() &&
@@ -467,6 +468,7 @@ void Filter::onResponseComplete(Filters::Common::MGW::ResponsePtr&& response) {
     // }
 
   case CheckStatus::Error: {
+    std::cout << "response 471" << std::endl;
     response->headers_to_add.emplace_back(Http::LowerCaseString(std::string("Error")), std::string("Error received from grpc call"));
     if (downstream_cluster_) {
       req_config_->incCounter(downstream_cluster_->statsScope(), req_config_->mgw_error_);
@@ -495,6 +497,7 @@ void Filter::onResponseComplete(Filters::Common::MGW::ResponsePtr&& response) {
   }
 
   default:
+    std::cout << "response 499" << std::endl;
     NOT_REACHED_GCOVR_EXCL_LINE;
     break;
   }

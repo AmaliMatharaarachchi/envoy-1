@@ -79,26 +79,6 @@ envoy_cc_library(
 )
 
 envoy_cc_library(
-    name = "mgw_http_lib",
-    srcs = ["mgw_http_impl.cc"],
-    hdrs = ["mgw_http_impl.h"],
-    deps = [
-        ":check_request_utils_lib",
-        ":mgw_interface",
-        "//include/envoy/upstream:cluster_manager_interface",
-        "//source/common/common:matchers_lib",
-        "//source/common/common:minimal_logger_lib",
-        "//source/common/http:async_client_lib",
-        "//source/common/http:codes_lib",
-        "//source/common/tracing:http_tracer_lib",
-        "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
-        "@envoy_api//envoy/extensions/filters/http/mgw/v3:pkg_cc_proto",
-        "@envoy_api//envoy/service/auth/v3:pkg_cc_proto",
-        "@envoy_api//envoy/type/matcher/v3:pkg_cc_proto",
-    ],
-)
-
-envoy_cc_library(
     name = "check_request_utils_lib",
     srcs = ["check_request_utils.cc"],
     hdrs = ["check_request_utils.h"],
